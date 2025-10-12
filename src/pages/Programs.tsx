@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Plus } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { ProgramDialog } from "@/components/programs/ProgramDialog";
 
 interface Program {
   id: string;
@@ -18,6 +19,7 @@ interface Program {
 const Programs = () => {
   const [programs, setPrograms] = useState<Program[]>([]);
   const [loading, setLoading] = useState(true);
+  const [dialogOpen, setDialogOpen] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -64,7 +66,7 @@ const Programs = () => {
           <h2 className="text-3xl font-bold tracking-tight">Programas</h2>
           <p className="text-muted-foreground">Gerencie programas PAC e Transferegov</p>
         </div>
-        <Button>
+        <Button onClick={() => setDialogOpen(true)}>
           <Plus className="mr-2 h-4 w-4" />
           Novo Programa
         </Button>
@@ -74,7 +76,7 @@ const Programs = () => {
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12">
             <p className="text-muted-foreground mb-4">Nenhum programa cadastrado ainda</p>
-            <Button>
+            <Button onClick={() => setDialogOpen(true)}>
               <Plus className="mr-2 h-4 w-4" />
               Cadastrar Primeiro Programa
             </Button>
@@ -115,6 +117,12 @@ const Programs = () => {
           ))}
         </div>
       )}
+
+      <ProgramDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        onSuccess={loadPrograms}
+      />
     </div>
   );
 };

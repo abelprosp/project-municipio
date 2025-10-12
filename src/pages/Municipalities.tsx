@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Plus } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { useNavigate } from "react-router-dom";
+import { MunicipalityDialog } from "@/components/municipalities/MunicipalityDialog";
 
 interface Municipality {
   id: string;
@@ -18,8 +18,8 @@ interface Municipality {
 const Municipalities = () => {
   const [municipalities, setMunicipalities] = useState<Municipality[]>([]);
   const [loading, setLoading] = useState(true);
+  const [dialogOpen, setDialogOpen] = useState(false);
   const { toast } = useToast();
-  const navigate = useNavigate();
 
   useEffect(() => {
     loadMunicipalities();
@@ -60,7 +60,7 @@ const Municipalities = () => {
           <h2 className="text-3xl font-bold tracking-tight">Municípios</h2>
           <p className="text-muted-foreground">Gerencie os municípios cadastrados</p>
         </div>
-        <Button>
+        <Button onClick={() => setDialogOpen(true)}>
           <Plus className="mr-2 h-4 w-4" />
           Novo Município
         </Button>
@@ -70,7 +70,7 @@ const Municipalities = () => {
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12">
             <p className="text-muted-foreground mb-4">Nenhum município cadastrado ainda</p>
-            <Button>
+            <Button onClick={() => setDialogOpen(true)}>
               <Plus className="mr-2 h-4 w-4" />
               Cadastrar Primeiro Município
             </Button>
@@ -98,6 +98,12 @@ const Municipalities = () => {
           ))}
         </div>
       )}
+
+      <MunicipalityDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        onSuccess={loadMunicipalities}
+      />
     </div>
   );
 };

@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Plus } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { ProjectDialog } from "@/components/projects/ProjectDialog";
 
 interface Project {
   id: string;
@@ -25,6 +26,7 @@ interface Project {
 const Projects = () => {
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
+  const [dialogOpen, setDialogOpen] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -110,7 +112,7 @@ const Projects = () => {
           <h2 className="text-3xl font-bold tracking-tight">Projetos</h2>
           <p className="text-muted-foreground">Gerencie todos os projetos e convênios</p>
         </div>
-        <Button>
+        <Button onClick={() => setDialogOpen(true)}>
           <Plus className="mr-2 h-4 w-4" />
           Novo Projeto
         </Button>
@@ -120,7 +122,7 @@ const Projects = () => {
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12">
             <p className="text-muted-foreground mb-4">Nenhum projeto cadastrado ainda</p>
-            <Button>
+            <Button onClick={() => setDialogOpen(true)}>
               <Plus className="mr-2 h-4 w-4" />
               Cadastrar Primeiro Projeto
             </Button>
@@ -173,6 +175,12 @@ const Projects = () => {
           ))}
         </div>
       )}
+
+      <ProjectDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        onSuccess={loadProjects}
+      />
     </div>
   );
 };
