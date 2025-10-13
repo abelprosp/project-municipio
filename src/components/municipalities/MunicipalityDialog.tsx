@@ -93,9 +93,46 @@ export function MunicipalityDialog({
     }
   };
 
+  const handleArchive = async () => {
+    if (!municipality?.id) return;
+    setLoading(true);
+    try {
+      const archivedNotePrefix = "[Arquivado] ";
+      const newNotes = `${archivedNotePrefix}${formData.notes || ""}`;
+      const { error } = await supabase
+        .from("municipalities")
+        .update({ ...formData, notes: newNotes })
+        .eq("id", municipality.id);
+      if (error) throw error;
+      toast({ title: "Município arquivado", description: "Marcado como arquivado nas observações." });
+      onSuccess();
+      onOpenChange(false);
+    } catch (err: any) {
+      toast({ title: "Erro ao arquivar", description: err.message, variant: "destructive" });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!municipality?.id) return;
+    setLoading(true);
+    try {
+      const { error } = await supabase.from("municipalities").delete().eq("id", municipality.id);
+      if (error) throw error;
+      toast({ title: "Município excluído", description: "O registro foi removido." });
+      onSuccess();
+      onOpenChange(false);
+    } catch (err: any) {
+      toast({ title: "Erro ao excluir", description: err.message, variant: "destructive" });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="sm:max-w-[600px]">
         <DialogHeader>
           <DialogTitle>
             {municipality ? "Editar Município" : "Novo Município"}
@@ -172,7 +209,17 @@ export function MunicipalityDialog({
               />
             </div>
           </div>
-          <DialogFooter>
+          <DialogFooter className="flex items-center justify-between gap-2">
+            {municipality?.id && (
+              <div className="flex items-center gap-2">
+                <Button type="button" variant="secondary" onClick={handleArchive} disabled={loading}>
+                  Arquivar
+                </Button>
+                <Button type="button" variant="destructive" onClick={handleDelete} disabled={loading}>
+                  Excluir
+                </Button>
+              </div>
+            )}
             <Button
               type="button"
               variant="outline"

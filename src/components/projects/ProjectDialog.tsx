@@ -21,6 +21,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { generateProjectPdfById } from "@/lib/pdf";
 
 type AmendmentType = "extra" | "individual" | "rp2" | "outro";
 type ProjectStatus = 
@@ -142,9 +143,44 @@ export function ProjectDialog({
     }
   };
 
+  const handleArchive = async () => {
+    if (!project?.id) return;
+    setLoading(true);
+    try {
+      const { error } = await supabase
+        .from("projects")
+        .update({ ...formData, status: "cancelado" })
+        .eq("id", project.id);
+      if (error) throw error;
+      toast({ title: "Projeto arquivado", description: "Status alterado para Cancelado." });
+      onSuccess();
+      onOpenChange(false);
+    } catch (err: any) {
+      toast({ title: "Erro ao arquivar", description: err.message, variant: "destructive" });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!project?.id) return;
+    setLoading(true);
+    try {
+      const { error } = await supabase.from("projects").delete().eq("id", project.id);
+      if (error) throw error;
+      toast({ title: "Projeto excluído", description: "O registro foi removido." });
+      onSuccess();
+      onOpenChange(false);
+    } catch (err: any) {
+      toast({ title: "Erro ao excluir", description: err.message, variant: "destructive" });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[600px] max-h-[90vh]">
+      <DialogContent className="sm:max-w-[700px] max-h-[90vh]">
         <DialogHeader>
           <DialogTitle>
             {project ? "Editar Projeto" : "Novo Projeto"}
@@ -392,7 +428,20 @@ export function ProjectDialog({
                 />
               </div>
             </div>
-            <DialogFooter className="mt-4">
+            <DialogFooter className="mt-4 flex items-center justify-between gap-2">
+              {project?.id && (
+                <div className="flex items-center gap-2">
+                  <Button type="button" variant="secondary" onClick={handleArchive} disabled={loading}>
+                    Arquivar
+                  </Button>
+                  <Button type="button" variant="destructive" onClick={handleDelete} disabled={loading}>
+                    Excluir
+                  </Button>
+                  <Button type="button" variant="outline" onClick={() => project?.id && generateProjectPdfById(project.id!)} disabled={loading}>
+                    Exportar PDF
+                  </Button>
+                </div>
+              )}
               <Button
                 type="button"
                 variant="outline"

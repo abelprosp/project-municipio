@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { generateDashboardPdf } from "@/lib/pdf";
 import { Building2, FolderKanban, DollarSign, TrendingUp } from "lucide-react";
 
 interface DashboardStats {
@@ -90,9 +92,18 @@ const Dashboard = () => {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-3xl font-bold tracking-tight">Dashboard</h2>
-        <p className="text-muted-foreground">Visão geral dos convênios e projetos</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-3xl font-bold tracking-tight">Dashboard</h2>
+          <p className="text-muted-foreground">Visão geral dos convênios e projetos</p>
+        </div>
+        <Button
+          variant="outline"
+          onClick={() => stats && generateDashboardPdf(stats)}
+          disabled={!stats}
+        >
+          Gerar PDF
+        </Button>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">

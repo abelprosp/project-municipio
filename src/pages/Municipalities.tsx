@@ -19,6 +19,7 @@ const Municipalities = () => {
   const [municipalities, setMunicipalities] = useState<Municipality[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [selectedMunicipality, setSelectedMunicipality] = useState<Municipality | undefined>(undefined);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -60,7 +61,7 @@ const Municipalities = () => {
           <h2 className="text-3xl font-bold tracking-tight">Municípios</h2>
           <p className="text-muted-foreground">Gerencie os municípios cadastrados</p>
         </div>
-        <Button onClick={() => setDialogOpen(true)}>
+        <Button onClick={() => { setSelectedMunicipality(undefined); setDialogOpen(true); }}>
           <Plus className="mr-2 h-4 w-4" />
           Novo Município
         </Button>
@@ -70,7 +71,7 @@ const Municipalities = () => {
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12">
             <p className="text-muted-foreground mb-4">Nenhum município cadastrado ainda</p>
-            <Button onClick={() => setDialogOpen(true)}>
+            <Button onClick={() => { setSelectedMunicipality(undefined); setDialogOpen(true); }}>
               <Plus className="mr-2 h-4 w-4" />
               Cadastrar Primeiro Município
             </Button>
@@ -79,7 +80,11 @@ const Municipalities = () => {
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {municipalities.map((municipality) => (
-            <Card key={municipality.id} className="hover:shadow-md transition-shadow cursor-pointer">
+            <Card
+              key={municipality.id}
+              className="hover:shadow-md transition-shadow cursor-pointer"
+              onClick={() => { setSelectedMunicipality(municipality); setDialogOpen(true); }}
+            >
               <CardHeader>
                 <CardTitle>{municipality.name}</CardTitle>
                 <CardDescription>{municipality.state}</CardDescription>
@@ -102,6 +107,7 @@ const Municipalities = () => {
       <MunicipalityDialog
         open={dialogOpen}
         onOpenChange={setDialogOpen}
+        municipality={selectedMunicipality}
         onSuccess={loadMunicipalities}
       />
     </div>

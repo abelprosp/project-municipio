@@ -20,6 +20,7 @@ const Programs = () => {
   const [programs, setPrograms] = useState<Program[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [selectedProgram, setSelectedProgram] = useState<Program | undefined>(undefined);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -66,7 +67,7 @@ const Programs = () => {
           <h2 className="text-3xl font-bold tracking-tight">Programas</h2>
           <p className="text-muted-foreground">Gerencie programas PAC e Transferegov</p>
         </div>
-        <Button onClick={() => setDialogOpen(true)}>
+        <Button onClick={() => { setSelectedProgram(undefined); setDialogOpen(true); }}>
           <Plus className="mr-2 h-4 w-4" />
           Novo Programa
         </Button>
@@ -85,7 +86,11 @@ const Programs = () => {
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {programs.map((program) => (
-            <Card key={program.id} className="hover:shadow-md transition-shadow">
+            <Card
+              key={program.id}
+              className="hover:shadow-md transition-shadow cursor-pointer"
+              onClick={() => { setSelectedProgram(program); setDialogOpen(true); }}
+            >
               <CardHeader>
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
@@ -121,6 +126,7 @@ const Programs = () => {
       <ProgramDialog
         open={dialogOpen}
         onOpenChange={setDialogOpen}
+        program={selectedProgram}
         onSuccess={loadPrograms}
       />
     </div>

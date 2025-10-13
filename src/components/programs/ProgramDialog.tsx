@@ -96,9 +96,44 @@ export function ProgramDialog({
     }
   };
 
+  const handleArchive = async () => {
+    if (!program?.id) return;
+    setLoading(true);
+    try {
+      const { error } = await supabase
+        .from("programs")
+        .update({ ...formData, status: "Arquivado" })
+        .eq("id", program.id);
+      if (error) throw error;
+      toast({ title: "Programa arquivado", description: "Status alterado para Arquivado." });
+      onSuccess();
+      onOpenChange(false);
+    } catch (err: any) {
+      toast({ title: "Erro ao arquivar", description: err.message, variant: "destructive" });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!program?.id) return;
+    setLoading(true);
+    try {
+      const { error } = await supabase.from("programs").delete().eq("id", program.id);
+      if (error) throw error;
+      toast({ title: "Programa excluído", description: "O registro foi removido." });
+      onSuccess();
+      onOpenChange(false);
+    } catch (err: any) {
+      toast({ title: "Erro ao excluir", description: err.message, variant: "destructive" });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="sm:max-w-[600px]">
         <DialogHeader>
           <DialogTitle>
             {program ? "Editar Programa" : "Novo Programa"}
@@ -173,7 +208,17 @@ export function ProgramDialog({
               />
             </div>
           </div>
-          <DialogFooter>
+          <DialogFooter className="flex items-center justify-between gap-2">
+            {program?.id && (
+              <div className="flex items-center gap-2">
+                <Button type="button" variant="secondary" onClick={handleArchive} disabled={loading}>
+                  Arquivar
+                </Button>
+                <Button type="button" variant="destructive" onClick={handleDelete} disabled={loading}>
+                  Excluir
+                </Button>
+              </div>
+            )}
             <Button
               type="button"
               variant="outline"

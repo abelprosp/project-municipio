@@ -3,9 +3,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Plus } from "lucide-react";
+import { Plus, LayoutList, KanbanSquare } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { ProjectDialog } from "@/components/projects/ProjectDialog";
+import { KanbanBoard } from "@/components/projects/KanbanBoard";
 
 interface Project {
   id: string;
@@ -27,6 +28,8 @@ const Projects = () => {
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [selectedProject, setSelectedProject] = useState<Project | undefined>(undefined);
+  const [viewMode, setViewMode] = useState<"lista" | "kanban">("lista");
   const { toast } = useToast();
 
   useEffect(() => {
@@ -112,17 +115,27 @@ const Projects = () => {
           <h2 className="text-3xl font-bold tracking-tight">Projetos</h2>
           <p className="text-muted-foreground">Gerencie todos os projetos e convênios</p>
         </div>
-        <Button onClick={() => setDialogOpen(true)}>
-          <Plus className="mr-2 h-4 w-4" />
-          Novo Projeto
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant={viewMode === "lista" ? "default" : "outline"} onClick={() => setViewMode("lista")}>
+            <LayoutList className="mr-2 h-4 w-4" /> Lista
+          </Button>
+          <Button variant={viewMode === "kanban" ? "default" : "outline"} onClick={() => setViewMode("kanban")}>
+            <KanbanSquare className="mr-2 h-4 w-4" /> Kanban
+          </Button>
+          <Button onClick={() => { setSelectedProject(undefined); setDialogOpen(true); }}>
+            <Plus className="mr-2 h-4 w-4" />
+            Novo Projeto
+          </Button>
+        </div>
       </div>
 
-      {projects.length === 0 ? (
+      {viewMode === "kanban" ? (
+        <KanbanBoard />
+      ) : projects.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12">
             <p className="text-muted-foreground mb-4">Nenhum projeto cadastrado ainda</p>
-            <Button onClick={() => setDialogOpen(true)}>
+            <Button onClick={() => { setSelectedProject(undefined); setDialogOpen(true); }}>
               <Plus className="mr-2 h-4 w-4" />
               Cadastrar Primeiro Projeto
             </Button>
@@ -131,7 +144,11 @@ const Projects = () => {
       ) : (
         <div className="grid gap-4">
           {projects.map((project) => (
-            <Card key={project.id} className="hover:shadow-md transition-shadow">
+            <Card
+              key={project.id}
+              className="hover:shadow-md transition-shadow cursor-pointer"
+              onClick={() => { setSelectedProject(project); setDialogOpen(true); }}
+            >
               <CardHeader>
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
@@ -179,6 +196,7 @@ const Projects = () => {
       <ProjectDialog
         open={dialogOpen}
         onOpenChange={setDialogOpen}
+        project={selectedProject}
         onSuccess={loadProjects}
       />
     </div>
