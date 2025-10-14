@@ -9,8 +9,9 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
-import { FolderKanban, FileText, PlusCircle } from "lucide-react";
+import { FolderKanban, CalendarDays, User } from "lucide-react";
 import { ProjectDialog } from "@/components/projects/ProjectDialog";
+import ProjectInfoDialog from "@/components/projects/ProjectInfoDialog";
 
 type ProjectStatus =
   | "em_criacao"
@@ -83,6 +84,8 @@ export function KanbanBoard() {
   const [activeProject, setActiveProject] = useState<Project | null>(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [selectedProject, setSelectedProject] = useState<any | undefined>(undefined);
+  const [infoDialogOpen, setInfoDialogOpen] = useState(false);
+  const [detailProject, setDetailProject] = useState<any | undefined>(undefined);
   const [activityForm, setActivityForm] = useState({
     description: "",
     responsible: "",
@@ -204,6 +207,27 @@ export function KanbanBoard() {
     }
   };
 
+  const daysUntil = (date?: string | null) => {
+    if (!date) return null;
+    try {
+      const target = new Date(date).getTime();
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const diff = Math.floor((target - today.getTime()) / (1000 * 60 * 60 * 24));
+      return diff;
+    } catch {
+      return null;
+    }
+  };
+
+  const dueBadge = (date?: string | null) => {
+    const d = daysUntil(date);
+    if (d === null) return { variant: "secondary" as const, label: "Sem prazo" };
+    if (d < 0) return { variant: "destructive" as const, label: `Vencido há ${Math.abs(d)}d` };
+    if (d <= 7) return { variant: "outline" as const, label: `Vence em ${d}d` };
+    return { variant: "default" as const, label: `Em ${d}d` };
+  };
+
   const openActivityDialog = (project: Project) => {
     setActiveProject(project);
     setActivityForm({ description: "", responsible: "", date: new Date().toISOString().slice(0, 10) });
@@ -250,6 +274,21 @@ export function KanbanBoard() {
     }
   };
 
+  const openInfoDialog = async (project: Project) => {
+    try {
+      const { data, error } = await supabase
+        .from("projects")
+        .select("*")
+        .eq("id", project.id)
+        .single();
+      if (error) throw error;
+      setDetailProject(data);
+      setInfoDialogOpen(true);
+    } catch (err: any) {
+      toast({ title: "Erro ao abrir detalhes", description: err.message, variant: "destructive" });
+    }
+  };
+
   const projectsByColumn = useMemo(() => {
     const map: Record<ProjectStatus, Project[]> = {
       em_criacao: [],
@@ -280,27 +319,27 @@ export function KanbanBoard() {
         <Button variant="outline" onClick={loadProjectsAndMovements}>Atualizar</Button>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-8">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
         {BOARD_COLUMNS.map((status) => (
           <div
             key={status}
-            className="rounded-lg border bg-muted/30"
+            className="rounded-lg border bg-muted/30 flex flex-col"
             onDragOver={(e) => e.preventDefault()}
             onDrop={() => onDropTo(status)}
           >
-            <div className="p-3 border-b bg-muted/50">
+            <div className="sticky top-0 z-10 p-3 border-b bg-muted/60 backdrop-blur">
               <span className="text-sm font-medium">{STATUS_LABEL[status]}</span>
-              <Badge variant="secondary" className="ml-2">
+              <Badge variant="secondary" className="ml-2 rounded-full px-2">
                 {(projectsByColumn[status] || []).length}
               </Badge>
             </div>
-            <div className="p-3 space-y-3 min-h-[140px]">
+            <div className="p-3 space-y-3 min-h-[140px] overflow-y-auto max-h-[70vh]">
               {(projectsByColumn[status] || []).map((project) => (
                 <Card
                   key={project.id}
                   draggable
                   onDragStart={() => onDragStart(project.id)}
-                  onClick={() => openEditDialog(project)}
+                  onClick={() => openInfoDialog(project)}
                   className="shadow-sm hover:shadow-md transition-shadow"
                 >
                   <CardHeader className="pb-2">
@@ -312,28 +351,34 @@ export function KanbanBoard() {
                         )}
                       </div>
                     </div>
-                    <div className="text-xs text-muted-foreground">{project.municipalities?.name}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {project.municipalities?.name}
+                      {project.programs?.name && (
+                        <span className="ml-1">• Programa: {project.programs.name}</span>
+                      )}
+                    </div>
                   </CardHeader>
                   <CardContent className="pt-0">
                     <div className="grid grid-cols-2 gap-2 text-xs">
-                      <div>
-                        <div className="text-muted-foreground">Prazo</div>
-                        <div className="font-medium">{formatDate(project.end_date)}</div>
+                      <div className="flex items-center gap-1">
+                        <CalendarDays className="h-3 w-3 text-muted-foreground" />
+                        <span className="text-muted-foreground">Prazo</span>
+                        <span className="font-medium ml-1">{formatDate(project.end_date)}</span>
                       </div>
-                      <div>
-                        <div className="text-muted-foreground">Responsável</div>
-                        <div className="font-medium">{latestResponsible(project.id)}</div>
+                      <div className="flex items-center gap-1 justify-end">
+                        <User className="h-3 w-3 text-muted-foreground" />
+                        <span className="text-muted-foreground">Responsável</span>
+                        <span className="font-medium ml-1">{latestResponsible(project.id)}</span>
                       </div>
                     </div>
 
-                    <div className="mt-3 flex items-center gap-2">
-                      <Button size="sm" variant="outline" onClick={() => openActivityDialog(project)}>
-                        <PlusCircle className="h-3 w-3 mr-1" /> Atividade
-                      </Button>
-                      <Button size="sm" variant="ghost" onClick={() => openReportDialog(project)}>
-                        <FileText className="h-3 w-3 mr-1" /> Relatórios
-                      </Button>
+                    <div className="mt-2 flex items-center justify-between">
+                      <Badge variant={dueBadge(project.end_date).variant} className="text-xs">
+                        {dueBadge(project.end_date).label}
+                      </Badge>
                     </div>
+
+                    {/* Ações removidas do card: serão exibidas dentro do modal de edição */}
                   </CardContent>
                 </Card>
               ))}
@@ -416,6 +461,23 @@ export function KanbanBoard() {
         onOpenChange={setEditDialogOpen}
         project={selectedProject}
         onSuccess={loadProjectsAndMovements}
+        onOpenActivity={(p) => openActivityDialog(p as any)}
+        onOpenReport={(p) => openReportDialog(p as any)}
+      />
+
+      <ProjectInfoDialog
+        open={infoDialogOpen}
+        onOpenChange={setInfoDialogOpen}
+        project={detailProject}
+        latestResponsible={(id) => latestResponsible(id)}
+        onOpenActivity={(p) => openActivityDialog(p as any)}
+        onOpenReport={(p) => openReportDialog(p as any)}
+        onEdit={() => {
+          if (!detailProject?.id) return;
+          setSelectedProject(detailProject);
+          setInfoDialogOpen(false);
+          setEditDialogOpen(true);
+        }}
       />
     </div>
   );

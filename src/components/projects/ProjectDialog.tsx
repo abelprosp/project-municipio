@@ -22,6 +22,7 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { generateProjectPdfById } from "@/lib/pdf";
+import { FileText, PlusCircle } from "lucide-react";
 
 type AmendmentType = "extra" | "individual" | "rp2" | "outro";
 type ProjectStatus = 
@@ -65,6 +66,8 @@ interface ProjectDialogProps {
   onOpenChange: (open: boolean) => void;
   project?: Project;
   onSuccess: () => void;
+  onOpenActivity?: (project: { id: string }) => void;
+  onOpenReport?: (project: { id: string }) => void;
 }
 
 export function ProjectDialog({
@@ -72,6 +75,8 @@ export function ProjectDialog({
   onOpenChange,
   project,
   onSuccess,
+  onOpenActivity,
+  onOpenReport,
 }: ProjectDialogProps) {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
@@ -207,6 +212,24 @@ export function ProjectDialog({
           <DialogDescription>
             Preencha os dados do convênio/projeto abaixo.
           </DialogDescription>
+          {project?.id && (
+            <div className="mt-2 flex items-center gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => onOpenActivity?.({ id: project.id! })}
+              >
+                <PlusCircle className="h-3 w-3 mr-1" /> Atividade
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => onOpenReport?.({ id: project.id! })}
+              >
+                <FileText className="h-3 w-3 mr-1" /> Relatórios
+              </Button>
+            </div>
+          )}
         </DialogHeader>
         <ScrollArea className="max-h-[60vh] pr-4">
           <form onSubmit={handleSubmit}>

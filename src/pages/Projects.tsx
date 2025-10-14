@@ -3,10 +3,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Plus, LayoutList, KanbanSquare, FileText, History } from "lucide-react";
+import { Plus, LayoutList, KanbanSquare, FileText, History, Table as TableIcon, Activity } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { ProjectDialog } from "@/components/projects/ProjectDialog";
 import { KanbanBoard } from "@/components/projects/KanbanBoard";
+import { ProjectsTable } from "@/components/projects/ProjectsTable";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -38,7 +39,7 @@ const Projects = () => {
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedProject, setSelectedProject] = useState<Project | undefined>(undefined);
-  const [viewMode, setViewMode] = useState<"lista" | "kanban">("lista");
+  const [viewMode, setViewMode] = useState<"lista" | "kanban" | "tabela">("lista");
   const [municipalities, setMunicipalities] = useState<any[]>([]);
   const [programs, setPrograms] = useState<any[]>([]);
   const [filters, setFilters] = useState({
@@ -214,6 +215,17 @@ const Projects = () => {
           <Button variant={viewMode === "kanban" ? "default" : "outline"} onClick={() => setViewMode("kanban")}>
             <KanbanSquare className="mr-2 h-4 w-4" /> Kanban
           </Button>
+          <Button variant={viewMode === "tabela" ? "default" : "outline"} onClick={() => setViewMode("tabela")}>
+            <TableIcon className="mr-2 h-4 w-4" /> Tabela
+          </Button>
+          <Button
+            variant={filters.status === "em_execucao" ? "default" : "outline"}
+            onClick={() =>
+              setFilters((f) => ({ ...f, status: f.status === "em_execucao" ? "" : "em_execucao" }))
+            }
+          >
+            <Activity className="mr-2 h-4 w-4" /> Execução
+          </Button>
           <Button onClick={() => { setSelectedProject(undefined); setDialogOpen(true); }}>
             <Plus className="mr-2 h-4 w-4" />
             Novo Projeto
@@ -222,7 +234,7 @@ const Projects = () => {
       </div>
 
       {/* Filtros */}
-      {viewMode === "lista" && (
+      {(viewMode === "lista" || viewMode === "tabela") && (
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div className="grid gap-2">
             <Label htmlFor="filter_municipality">Município</Label>
@@ -312,6 +324,13 @@ const Projects = () => {
 
       {viewMode === "kanban" ? (
         <KanbanBoard />
+      ) : viewMode === "tabela" ? (
+        <ProjectsTable
+          projects={projects}
+          onEdit={(project) => { setSelectedProject(project); setDialogOpen(true); }}
+          onOpenHistory={(project) => openHistory(project)}
+          onGeneratePdf={(projectId) => generateProjectPdfById(projectId)}
+        />
       ) : projects.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12">
