@@ -8,6 +8,7 @@ import { useToast } from "@/hooks/use-toast";
 import { ProjectDialog } from "@/components/projects/ProjectDialog";
 import { KanbanBoard } from "@/components/projects/KanbanBoard";
 import { ProjectsTable } from "@/components/projects/ProjectsTable";
+import ProjectInfoDialog from "@/components/projects/ProjectInfoDialog";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -52,6 +53,9 @@ const Projects = () => {
   const [activeProject, setActiveProject] = useState<any | null>(null);
   const [movements, setMovements] = useState<any[]>([]);
   const [activityForm, setActivityForm] = useState({ description: "", responsible: "", date: new Date().toISOString().slice(0, 10) });
+  const [infoDialogOpen, setInfoDialogOpen] = useState(false);
+  const [detailProject, setDetailProject] = useState<any | null>(null);
+  const [latestResponsibleMap, setLatestResponsibleMap] = useState<Record<string, string>>({});
   const { toast } = useToast();
 
   useEffect(() => {
@@ -77,6 +81,35 @@ const Projects = () => {
       // silencioso
     }
   };
+
+  const openInfoDialog = async (project: any) => {
+    try {
+      // Buscar dados completos do projeto, incluindo campos adicionais
+      const { data, error } = await supabase
+        .from("projects")
+        .select("*")
+        .eq("id", project.id)
+        .single();
+      if (error) throw error;
+      setDetailProject(data);
+
+      // Buscar último responsável (movimentação mais recente)
+      const { data: lastMov } = await supabase
+        .from("movements")
+        .select("responsible, date")
+        .eq("project_id", project.id)
+        .order("date", { ascending: false })
+        .limit(1);
+      const responsible = (lastMov && lastMov[0]?.responsible) || "—";
+      setLatestResponsibleMap((m) => ({ ...m, [project.id]: responsible }));
+
+      setInfoDialogOpen(true);
+    } catch (err: any) {
+      toast({ title: "Erro ao abrir detalhes", description: err.message, variant: "destructive" });
+    }
+  };
+
+  const latestResponsible = (projectId: string) => latestResponsibleMap[projectId] || "—";
 
   const loadProjects = async () => {
     try {
@@ -347,7 +380,7 @@ const Projects = () => {
             <Card
               key={project.id}
               className="hover:shadow-md transition-shadow cursor-pointer"
-              onClick={() => { setSelectedProject(project); setDialogOpen(true); }}
+              onClick={() => openInfoDialog(project)}
             >
               <CardHeader>
                 <div className="flex items-start justify-between">
@@ -411,6 +444,30 @@ const Projects = () => {
         onOpenChange={setDialogOpen}
         project={selectedProject}
         onSuccess={loadProjects}
+      />
+
+      {/* Dialog: Detalhes do projeto (somente leitura) */}
+      <ProjectInfoDialog
+        open={infoDialogOpen}
+        onOpenChange={setInfoDialogOpen}
+        project={detailProject}
+        latestResponsible={latestResponsible}
+        onOpenActivity={(p) => {
+          const proj = { id: p.id };
+          // Reutiliza o diálogo de histórico para registrar atividade
+          const original = projects.find((x) => x.id === p.id) || detailProject;
+          if (original) openHistory(original);
+        }}
+        onOpenReport={(p) => {
+          const original = projects.find((x) => x.id === p.id) || detailProject;
+          if (original) openHistory(original);
+        }}
+        onEdit={() => {
+          if (!detailProject) return;
+          setSelectedProject(detailProject);
+          setInfoDialogOpen(false);
+          setDialogOpen(true);
+        }}
       />
       {/* Dialog: Histórico do projeto */}
       <Dialog open={historyDialogOpen} onOpenChange={setHistoryDialogOpen}>

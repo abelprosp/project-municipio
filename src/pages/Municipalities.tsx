@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Plus } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { MunicipalityDialog } from "@/components/municipalities/MunicipalityDialog";
+import MunicipalityInfoDialog from "@/components/municipalities/MunicipalityInfoDialog";
 
 interface Municipality {
   id: string;
@@ -20,6 +21,8 @@ const Municipalities = () => {
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedMunicipality, setSelectedMunicipality] = useState<Municipality | undefined>(undefined);
+  const [infoDialogOpen, setInfoDialogOpen] = useState(false);
+  const [detailMunicipality, setDetailMunicipality] = useState<Municipality | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -83,7 +86,20 @@ const Municipalities = () => {
             <Card
               key={municipality.id}
               className="hover:shadow-md transition-shadow cursor-pointer"
-              onClick={() => { setSelectedMunicipality(municipality); setDialogOpen(true); }}
+              onClick={async () => {
+                try {
+                  const { data, error } = await supabase
+                    .from("municipalities")
+                    .select("*")
+                    .eq("id", municipality.id)
+                    .single();
+                  if (error) throw error;
+                  setDetailMunicipality(data);
+                  setInfoDialogOpen(true);
+                } catch (err: any) {
+                  toast({ title: "Erro ao abrir detalhes", description: err.message, variant: "destructive" });
+                }
+              }}
             >
               <CardHeader>
                 <CardTitle>{municipality.name}</CardTitle>
@@ -109,6 +125,18 @@ const Municipalities = () => {
         onOpenChange={setDialogOpen}
         municipality={selectedMunicipality}
         onSuccess={loadMunicipalities}
+      />
+
+      <MunicipalityInfoDialog
+        open={infoDialogOpen}
+        onOpenChange={setInfoDialogOpen}
+        municipality={detailMunicipality ?? undefined}
+        onEdit={() => {
+          if (!detailMunicipality) return;
+          setSelectedMunicipality(detailMunicipality);
+          setInfoDialogOpen(false);
+          setDialogOpen(true);
+        }}
       />
     </div>
   );

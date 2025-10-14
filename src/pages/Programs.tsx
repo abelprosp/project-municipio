@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Plus } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { ProgramDialog } from "@/components/programs/ProgramDialog";
+import ProgramInfoDialog from "@/components/programs/ProgramInfoDialog";
 
 interface Program {
   id: string;
@@ -21,6 +22,8 @@ const Programs = () => {
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedProgram, setSelectedProgram] = useState<Program | undefined>(undefined);
+  const [infoDialogOpen, setInfoDialogOpen] = useState(false);
+  const [detailProgram, setDetailProgram] = useState<Program | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -89,7 +92,20 @@ const Programs = () => {
             <Card
               key={program.id}
               className="hover:shadow-md transition-shadow cursor-pointer"
-              onClick={() => { setSelectedProgram(program); setDialogOpen(true); }}
+              onClick={async () => {
+                try {
+                  const { data, error } = await supabase
+                    .from("programs")
+                    .select("*")
+                    .eq("id", program.id)
+                    .single();
+                  if (error) throw error;
+                  setDetailProgram(data);
+                  setInfoDialogOpen(true);
+                } catch (err: any) {
+                  toast({ title: "Erro ao abrir detalhes", description: err.message, variant: "destructive" });
+                }
+              }}
             >
               <CardHeader>
                 <div className="flex items-start justify-between">
@@ -128,6 +144,18 @@ const Programs = () => {
         onOpenChange={setDialogOpen}
         program={selectedProgram}
         onSuccess={loadPrograms}
+      />
+
+      <ProgramInfoDialog
+        open={infoDialogOpen}
+        onOpenChange={setInfoDialogOpen}
+        program={detailProgram ?? undefined}
+        onEdit={() => {
+          if (!detailProgram) return;
+          setSelectedProgram(detailProgram);
+          setInfoDialogOpen(false);
+          setDialogOpen(true);
+        }}
       />
     </div>
   );
