@@ -13,6 +13,9 @@ type ProjectStatus =
   | "em_criacao"
   | "enviado"
   | "em_analise"
+  | "em_complementacao"
+  | "solicitado_documentacao"
+  | "aguardando_documentacao"
   | "clausula_suspensiva"
   | "aprovado"
   | "em_execucao"
@@ -24,6 +27,9 @@ const STATUS_LABEL: Record<string, string> = {
   em_criacao: "Em Criação",
   enviado: "Enviado",
   em_analise: "Em Análise",
+  em_complementacao: "Em Complementação",
+  solicitado_documentacao: "Solicitado Documentação",
+  aguardando_documentacao: "Aguardando Documentação",
   clausula_suspensiva: "Cláusula Suspensiva",
   aprovado: "Aprovado",
   em_execucao: "Em Execução",
@@ -152,6 +158,16 @@ export async function generateProjectPdfById(projectId: string) {
     doc.text(`Prestação de Contas: ${formatDateBR(project.accountability_date)}`, marginLeft, y);
     y += 6;
   }
+  if (project.status === "solicitado_documentacao") {
+    if ((project as any).document_request_date) {
+      doc.text(`Data de envio: ${formatDateBR((project as any).document_request_date)}`, marginLeft, y);
+      y += 6;
+    }
+    if ((project as any).document_deadline_date) {
+      doc.text(`Prazo de atendimento: ${formatDateBR((project as any).document_deadline_date)}`, marginLeft, y);
+      y += 6;
+    }
+  }
   if (project.notes) {
     const notes = `Observações: ${project.notes}`;
     const split = doc.splitTextToSize(notes, 180);
@@ -197,4 +213,71 @@ export async function generateProjectPdfById(projectId: string) {
 
   const fileNameSafeMun = (project.municipalities?.name || "municipio").replace(/[^a-z0-9_-]+/gi, "_");
   doc.save(`relatorio-projeto_${fileNameSafeMun}_${project.year || ""}.pdf`);
+}
+
+export async function generateProjectsListPdf(projects: any[]) {
+  const doc = new jsPDF();
+  const marginLeft = 12;
+  let y = 20;
+
+  doc.setFontSize(16);
+  doc.text("Relatório — Lista de Projetos (filtrados)", marginLeft, y);
+  doc.setFontSize(10);
+  y += 6;
+  doc.text(`Emitido em: ${new Date().toLocaleString("pt-BR")}`, marginLeft, y);
+
+  // Cabeçalho de colunas
+  y += 12;
+  doc.setFontSize(11);
+  doc.text("Município", marginLeft, y);
+  doc.text("Ano", marginLeft + 45, y);
+  doc.text("Objeto", marginLeft + 60, y);
+  doc.text("Programa", marginLeft + 140, y);
+  doc.text("Ministério", marginLeft + 180, y);
+  y += 6;
+  doc.setFontSize(10);
+  doc.text("Status", marginLeft, y);
+  doc.text("Repasse", marginLeft + 45, y);
+  doc.text("Contrapartida", marginLeft + 90, y);
+  doc.text("Total", marginLeft + 140, y);
+  doc.text("Exec.%", marginLeft + 180, y);
+
+  y += 8;
+  doc.setFontSize(10);
+
+  for (const p of projects || []) {
+    if (y > 270) {
+      doc.addPage();
+      y = 20;
+    }
+    const mun = p.municipalities?.name || "—";
+    const ano = p.year ?? "—";
+    const obj = String(p.object || "—");
+    const prog = p.programs?.name || "—";
+    const min = p.ministry || "—";
+    const status = STATUS_LABEL[p.status as string] || String(p.status || "—");
+    const rep = formatCurrencyBRL(Number(p.transfer_amount || 0));
+    const ctr = formatCurrencyBRL(Number(p.counterpart_amount || 0));
+    const tot = formatCurrencyBRL(Number(p.transfer_amount || 0) + Number(p.counterpart_amount || 0));
+    const exec = `${Number(p.execution_percentage || 0)}%`;
+
+    // Primeira linha com infos textuais
+    const linha1 = `${mun}`;
+    doc.text(linha1, marginLeft, y);
+    doc.text(String(ano), marginLeft + 45, y);
+    doc.text(obj.length > 60 ? doc.splitTextToSize(obj, 70)[0] : obj, marginLeft + 60, y);
+    doc.text(prog.length > 28 ? doc.splitTextToSize(prog, 38)[0] : prog, marginLeft + 140, y);
+    doc.text(min.length > 28 ? doc.splitTextToSize(min, 38)[0] : min, marginLeft + 180, y);
+    y += 6;
+
+    // Segunda linha com métricas
+    doc.text(status, marginLeft, y);
+    doc.text(rep, marginLeft + 45, y);
+    doc.text(ctr, marginLeft + 90, y);
+    doc.text(tot, marginLeft + 140, y);
+    doc.text(exec, marginLeft + 180, y);
+    y += 8;
+  }
+
+  doc.save("relatorio-lista-projetos.pdf");
 }

@@ -16,6 +16,9 @@ type ProjectStatus =
   | "em_criacao"
   | "enviado"
   | "em_analise"
+  | "em_complementacao"
+  | "solicitado_documentacao"
+  | "aguardando_documentacao"
   | "clausula_suspensiva"
   | "aprovado"
   | "em_execucao"
@@ -45,6 +48,9 @@ const STATUS_LABEL: Record<ProjectStatus, string> = {
   em_criacao: "Em Criação",
   enviado: "Enviado",
   em_analise: "Em Análise",
+  em_complementacao: "Em Complementação",
+  solicitado_documentacao: "Solicitado Documentação",
+  aguardando_documentacao: "Aguardando Documentação",
   clausula_suspensiva: "Cláusula Suspensiva",
   aprovado: "Aprovado",
   em_execucao: "Em Execução",
@@ -57,6 +63,9 @@ const BOARD_COLUMNS: ProjectStatus[] = [
   "em_criacao",
   "enviado",
   "em_analise",
+  "em_complementacao",
+  "solicitado_documentacao",
+  "aguardando_documentacao",
   "clausula_suspensiva",
   "aprovado",
   "em_execucao",
@@ -246,6 +255,9 @@ export function KanbanBoard() {
       em_criacao: [],
       enviado: [],
       em_analise: [],
+      em_complementacao: [],
+      solicitado_documentacao: [],
+      aguardando_documentacao: [],
       clausula_suspensiva: [],
       aprovado: [],
       em_execucao: [],

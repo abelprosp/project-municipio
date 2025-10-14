@@ -28,6 +28,9 @@ type ProjectStatus =
   | "em_criacao"
   | "enviado"
   | "em_analise"
+  | "em_complementacao"
+  | "solicitado_documentacao"
+  | "aguardando_documentacao"
   | "clausula_suspensiva"
   | "aprovado"
   | "em_execucao"
@@ -38,6 +41,7 @@ type ProjectStatus =
 interface Project {
   id?: string;
   municipality_id: string;
+  program_id?: string | null;
   year: number;
   proposal_number: string | null;
   object: string;
@@ -51,6 +55,8 @@ interface Project {
   start_date: string | null;
   end_date: string | null;
   accountability_date: string | null;
+  document_request_date?: string | null;
+  document_deadline_date?: string | null;
   notes: string | null;
 }
 
@@ -70,9 +76,11 @@ export function ProjectDialog({
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [municipalities, setMunicipalities] = useState<any[]>([]);
+  const [programs, setPrograms] = useState<any[]>([]);
   const [formData, setFormData] = useState<Project>(
     project || {
       municipality_id: "",
+      program_id: null,
       year: new Date().getFullYear(),
       proposal_number: "",
       object: "",
@@ -86,12 +94,15 @@ export function ProjectDialog({
       start_date: "",
       end_date: "",
       accountability_date: "",
+      document_request_date: "",
+      document_deadline_date: "",
       notes: "",
     }
   );
 
   useEffect(() => {
     loadMunicipalities();
+    loadPrograms();
   }, []);
 
   const loadMunicipalities = async () => {
@@ -100,6 +111,14 @@ export function ProjectDialog({
       .select("id, name")
       .order("name");
     setMunicipalities(data || []);
+  };
+
+  const loadPrograms = async () => {
+    const { data } = await supabase
+      .from("programs")
+      .select("id, name")
+      .order("name");
+    setPrograms(data || []);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -252,6 +271,27 @@ export function ProjectDialog({
                 />
               </div>
 
+              <div className="grid gap-2">
+                <Label htmlFor="program_id">Programa</Label>
+                <Select
+                  value={formData.program_id || undefined}
+                  onValueChange={(value) =>
+                    setFormData({ ...formData, program_id: value })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione um programa" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {programs.map((p) => (
+                      <SelectItem key={p.id} value={p.id}>
+                        {p.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <div className="grid gap-2">
                   <Label htmlFor="ministry">Ministério/Órgão</Label>
@@ -362,6 +402,9 @@ export function ProjectDialog({
                       <SelectItem value="em_criacao">Em Criação</SelectItem>
                       <SelectItem value="enviado">Enviado</SelectItem>
                       <SelectItem value="em_analise">Em Análise</SelectItem>
+                      <SelectItem value="em_complementacao">Em Complementação</SelectItem>
+                      <SelectItem value="solicitado_documentacao">Solicitado Documentação</SelectItem>
+                      <SelectItem value="aguardando_documentacao">Aguardando Documentação</SelectItem>
                       <SelectItem value="clausula_suspensiva">
                         Cláusula Suspensiva
                       </SelectItem>
@@ -375,6 +418,33 @@ export function ProjectDialog({
                     </SelectContent>
                   </Select>
                 </div>
+
+                {formData.status === "solicitado_documentacao" && (
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="grid gap-2">
+                      <Label htmlFor="document_request_date">Data de Envio</Label>
+                      <Input
+                        id="document_request_date"
+                        type="date"
+                        value={formData.document_request_date || ""}
+                        onChange={(e) =>
+                          setFormData({ ...formData, document_request_date: e.target.value })
+                        }
+                      />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="document_deadline_date">Prazo de Atendimento</Label>
+                      <Input
+                        id="document_deadline_date"
+                        type="date"
+                        value={formData.document_deadline_date || ""}
+                        onChange={(e) =>
+                          setFormData({ ...formData, document_deadline_date: e.target.value })
+                        }
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="grid grid-cols-3 gap-4">
