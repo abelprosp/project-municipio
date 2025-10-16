@@ -73,13 +73,66 @@ export function ProgramDialog({
           description: "As informações foram salvas com sucesso.",
         });
       } else {
-        const { error } = await supabase.from("programs").insert([formData]);
+        const { data: createdPrograms, error } = await supabase
+          .from("programs")
+          .insert([formData])
+          .select("id, name, responsible_agency");
 
         if (error) throw error;
 
+        const newProgram = createdPrograms?.[0];
+        if (newProgram) {
+          const { data: munis } = await supabase
+            .from("municipalities")
+            .select("id, name");
+          const year = new Date().getFullYear();
+          const pendingProjects = (munis || []).map((m) => ({
+            municipality_id: m.id,
+            program_id: newProgram.id,
+            year,
+            object: `Pendente — ${newProgram.name}`,
+            ministry: newProgram.responsible_agency,
+            transfer_amount: 0,
+            counterpart_amount: 0,
+            execution_percentage: 0,
+            status: "em_criacao",
+            start_date: null,
+            end_date: null,
+            accountability_date: null,
+            notes: "Criado automaticamente para acompanhamento do programa",
+          }));
+
+        if (pendingProjects.length) {
+          const { error: projErr } = await supabase
+            .from("projects")
+            .insert(pendingProjects);
+          if (projErr) {
+            console.error("Erro ao criar pendências de municípios:", projErr.message);
+          }
+        }
+
+        // Notificação sobre criação do programa e pendências geradas
+        try {
+          const { data: { user } } = await supabase.auth.getUser();
+          if (user) {
+            await supabase
+              .from("notifications")
+              .insert({
+                user_id: user.id,
+                title: "Programa cadastrado",
+                message: `\"${formData.name}\" criado. Pendências geradas para ${pendingProjects.length} municípios.`,
+                link: "/programs",
+                type: "success",
+              });
+          }
+        } catch {
+          // silencioso
+        }
+        }
+
         toast({
           title: "Programa cadastrado",
-          description: "O programa foi criado com sucesso.",
+          description: "O programa foi criado e pendências foram geradas para todos os municípios.",
         });
       }
 

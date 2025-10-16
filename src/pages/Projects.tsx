@@ -165,12 +165,14 @@ const Projects = () => {
   const saveActivity = async () => {
     if (!activeProject) return;
     try {
+      const { data: { user } } = await supabase.auth.getUser();
       const { error } = await supabase.from("movements").insert({
         project_id: activeProject.id,
         stage: activeProject.status,
         description: activityForm.description,
         responsible: activityForm.responsible || null,
         date: new Date(activityForm.date).toISOString(),
+        created_by: user ? user.id : null,
       });
       if (error) throw error;
       toast({ title: "Atividade registrada", description: "Acompanhamento atualizado." });

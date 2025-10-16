@@ -14,6 +14,39 @@ export type Database = {
   }
   public: {
     Tables: {
+      notifications: {
+        Row: {
+          id: string
+          user_id: string
+          title: string
+          message: string | null
+          link: string | null
+          type: string
+          read_at: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          title: string
+          message?: string | null
+          link?: string | null
+          type?: string
+          read_at?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          title?: string
+          message?: string | null
+          link?: string | null
+          type?: string
+          read_at?: string | null
+          created_at?: string
+        }
+        Relationships: []
+      }
       movements: {
         Row: {
           created_at: string

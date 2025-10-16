@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { generateDashboardPdf } from "@/lib/pdf";
 import { Building2, FolderKanban, DollarSign, TrendingUp } from "lucide-react";
+import DailyTasks from "@/components/tasks/DailyTasks";
 
 interface DashboardStats {
   totalMunicipalities: number;
@@ -271,6 +272,9 @@ const Dashboard = () => {
           </CardContent>
         </Card>
       </div>
+
+      {/* Atividades do dia e próximos dias */}
+      <DailyTasks />
 
       <Card>
         <CardHeader>

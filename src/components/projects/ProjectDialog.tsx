@@ -162,6 +162,16 @@ export function ProjectDialog({
 
         if (error) throw error;
 
+        // Gerar notificações de prazos após atualização
+        try {
+          const { data: { user } } = await supabase.auth.getUser();
+          if (user) {
+            await supabase.rpc("generate_deadline_notifications", { p_user_id: user.id });
+          }
+        } catch {
+          // silencioso
+        }
+
         toast({
           title: "Projeto atualizado",
           description: "As informações foram salvas com sucesso.",
@@ -172,6 +182,16 @@ export function ProjectDialog({
           .insert([buildProjectPayload(formData)]);
 
         if (error) throw error;
+
+        // Gerar notificações de prazos após criação
+        try {
+          const { data: { user } } = await supabase.auth.getUser();
+          if (user) {
+            await supabase.rpc("generate_deadline_notifications", { p_user_id: user.id });
+          }
+        } catch {
+          // silencioso
+        }
 
         toast({
           title: "Projeto cadastrado",

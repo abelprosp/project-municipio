@@ -20,6 +20,21 @@ type ProjectStatus =
   | "concluido"
   | "cancelado";
 
+const STATUS_LABEL: Record<ProjectStatus, string> = {
+  em_criacao: "Em Criação",
+  enviado: "Enviado",
+  em_analise: "Em Análise",
+  em_complementacao: "Em Complementação",
+  solicitado_documentacao: "Solicitado Documentação",
+  aguardando_documentacao: "Aguardando Documentação",
+  clausula_suspensiva: "Cláusula Suspensiva",
+  aprovado: "Aprovado",
+  em_execucao: "Em Execução",
+  prestacao_contas: "Prestação de Contas",
+  concluido: "Concluído",
+  cancelado: "Cancelado",
+};
+
 interface Project {
   id?: string;
   municipality_id: string;
@@ -98,7 +113,9 @@ export function ProjectInfoDialog({
                 <div className="font-medium">{project?.object || "—"}</div>
               </div>
               <div className="text-right">
-                <Badge variant="secondary">{project?.status || "—"}</Badge>
+                <Badge variant="secondary">
+                  {project?.status ? STATUS_LABEL[project.status as ProjectStatus] : "—"}
+                </Badge>
               </div>
             </div>
 

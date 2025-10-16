@@ -179,14 +179,34 @@ export function KanbanBoard() {
 
       if (error) throw error;
 
-      // Record movement for acompanhamento
+      // Record movement for acompanhamento (com created_by)
+      const { data: { user } } = await supabase.auth.getUser();
       await supabase.from("movements").insert({
         project_id: draggedId,
         stage: newStatus,
         description: `Status atualizado para ${STATUS_LABEL[newStatus]}`,
         responsible: null,
         date: new Date().toISOString(),
+        created_by: user ? user.id : null,
       });
+
+      // Notificação de mudança de status
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          await supabase
+            .from("notifications")
+            .insert({
+              user_id: user.id,
+              title: "Status atualizado",
+              message: `Projeto movido para ${STATUS_LABEL[newStatus]}.`,
+              link: "/projects",
+              type: "info",
+            });
+        }
+      } catch {
+        // silencioso
+      }
 
       setProjects((prev) => prev.map((p) => (p.id === draggedId ? { ...p, status: newStatus } : p)));
       // Refresh movements list
@@ -237,12 +257,14 @@ export function KanbanBoard() {
   const saveActivity = async () => {
     if (!activeProject) return;
     try {
+      const { data: { user } } = await supabase.auth.getUser();
       const { error } = await supabase.from("movements").insert({
         project_id: activeProject.id,
         stage: activeProject.status,
         description: activityForm.description,
         responsible: activityForm.responsible || null,
         date: new Date(activityForm.date).toISOString(),
+        created_by: user ? user.id : null,
       });
       if (error) throw error;
 
