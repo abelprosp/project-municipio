@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "./AppSidebar";
 import { Session } from "@supabase/supabase-js";
+import ChatbotWidget from "@/components/chatbot/ChatbotWidget";
 
 interface MainLayoutProps {
   children: React.ReactNode;
@@ -60,6 +61,8 @@ const MainLayout = ({ children }: MainLayoutProps) => {
             </h1>
           </header>
           <main className="flex-1 p-6 overflow-auto">{children}</main>
+          {/* Chatbot fixo no canto inferior direito */}
+          <ChatbotWidget />
         </div>
       </div>
     </SidebarProvider>

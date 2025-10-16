@@ -126,6 +126,29 @@ export function ProjectDialog({
     setPrograms(data || []);
   };
 
+  // Evita enviar colunas que não existem no schema atual do Supabase
+  // Remove campos de documentação recém-propostos que podem não estar migrados
+  const buildProjectPayload = (data: Project) => {
+    return {
+      municipality_id: data.municipality_id,
+      program_id: data.program_id ?? null,
+      year: data.year,
+      proposal_number: data.proposal_number,
+      object: data.object,
+      ministry: data.ministry,
+      parliamentarian: data.parliamentarian,
+      amendment_type: data.amendment_type,
+      transfer_amount: data.transfer_amount,
+      counterpart_amount: data.counterpart_amount,
+      execution_percentage: data.execution_percentage,
+      status: data.status,
+      start_date: data.start_date,
+      end_date: data.end_date,
+      accountability_date: data.accountability_date,
+      notes: data.notes,
+    };
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -134,7 +157,7 @@ export function ProjectDialog({
       if (project?.id) {
         const { error } = await supabase
           .from("projects")
-          .update(formData)
+          .update(buildProjectPayload(formData))
           .eq("id", project.id);
 
         if (error) throw error;
@@ -144,7 +167,9 @@ export function ProjectDialog({
           description: "As informações foram salvas com sucesso.",
         });
       } else {
-        const { error } = await supabase.from("projects").insert([formData]);
+        const { error } = await supabase
+          .from("projects")
+          .insert([buildProjectPayload(formData)]);
 
         if (error) throw error;
 
@@ -173,7 +198,7 @@ export function ProjectDialog({
     try {
       const { error } = await supabase
         .from("projects")
-        .update({ ...formData, status: "cancelado" })
+        .update({ ...buildProjectPayload(formData), status: "cancelado" })
         .eq("id", project.id);
       if (error) throw error;
       toast({ title: "Projeto arquivado", description: "Status alterado para Cancelado." });
