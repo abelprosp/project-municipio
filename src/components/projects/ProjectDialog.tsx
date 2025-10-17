@@ -82,33 +82,65 @@ export function ProjectDialog({
   const [loading, setLoading] = useState(false);
   const [municipalities, setMunicipalities] = useState<any[]>([]);
   const [programs, setPrograms] = useState<any[]>([]);
-  const [formData, setFormData] = useState<Project>(
-    project || {
-      municipality_id: "",
-      program_id: null,
-      year: new Date().getFullYear(),
-      proposal_number: "",
-      object: "",
-      ministry: "",
-      parliamentarian: "",
-      amendment_type: null,
-      transfer_amount: 0,
-      counterpart_amount: 0,
-      execution_percentage: 0,
-      status: "em_criacao",
-      start_date: "",
-      end_date: "",
-      accountability_date: "",
-      document_request_date: "",
-      document_deadline_date: "",
-      notes: "",
-    }
-  );
+  const DEFAULT_FORM: Project = {
+    municipality_id: "",
+    program_id: null,
+    year: new Date().getFullYear(),
+    proposal_number: "",
+    object: "",
+    ministry: "",
+    parliamentarian: "",
+    amendment_type: null,
+    transfer_amount: 0,
+    counterpart_amount: 0,
+    execution_percentage: 0,
+    status: "em_criacao",
+    start_date: "",
+    end_date: "",
+    accountability_date: "",
+    document_request_date: "",
+    document_deadline_date: "",
+    notes: "",
+  };
+
+  const [formData, setFormData] = useState<Project>(project || DEFAULT_FORM);
 
   useEffect(() => {
     loadMunicipalities();
     loadPrograms();
   }, []);
+
+  // Sincroniza o formulário quando um projeto é passado para edição
+  useEffect(() => {
+    if (!open) return; // apenas ao abrir o diálogo
+    if (project) {
+      // Garantir tipos corretos e preencher valores ausentes
+      setFormData({
+        ...DEFAULT_FORM,
+        ...project,
+        municipality_id: project.municipality_id ?? "",
+        program_id: project.program_id ?? null,
+        year: typeof project.year === "string" ? parseInt(project.year as any) : (project.year ?? new Date().getFullYear()),
+        proposal_number: project.proposal_number ?? "",
+        object: project.object ?? "",
+        ministry: project.ministry ?? "",
+        parliamentarian: project.parliamentarian ?? "",
+        amendment_type: project.amendment_type ?? null,
+        transfer_amount: typeof project.transfer_amount === "string" ? parseFloat(project.transfer_amount as any) : (project.transfer_amount ?? 0),
+        counterpart_amount: typeof project.counterpart_amount === "string" ? parseFloat(project.counterpart_amount as any) : (project.counterpart_amount ?? 0),
+        execution_percentage: typeof project.execution_percentage === "string" ? parseInt(project.execution_percentage as any) : (project.execution_percentage ?? 0),
+        status: project.status ?? "em_criacao",
+        start_date: project.start_date ?? "",
+        end_date: project.end_date ?? "",
+        accountability_date: project.accountability_date ?? "",
+        document_request_date: project.document_request_date ?? "",
+        document_deadline_date: project.document_deadline_date ?? "",
+        notes: project.notes ?? "",
+      });
+    } else {
+      setFormData(DEFAULT_FORM);
+    }
+  }, [project, open]);
 
   const loadMunicipalities = async () => {
     const { data } = await supabase
@@ -126,8 +158,6 @@ export function ProjectDialog({
     setPrograms(data || []);
   };
 
-  // Evita enviar colunas que não existem no schema atual do Supabase
-  // Remove campos de documentação recém-propostos que podem não estar migrados
   const buildProjectPayload = (data: Project) => {
     return {
       municipality_id: data.municipality_id,
@@ -145,6 +175,8 @@ export function ProjectDialog({
       start_date: data.start_date,
       end_date: data.end_date,
       accountability_date: data.accountability_date,
+      document_request_date: data.document_request_date ?? null,
+      document_deadline_date: data.document_deadline_date ?? null,
       notes: data.notes,
     };
   };

@@ -13,15 +13,18 @@ create table if not exists public.notifications (
 alter table public.notifications enable row level security;
 
 -- RLS: users can read, insert and update their own notifications
-create policy if not exists "Users can read own notifications"
+drop policy if exists "Users can read own notifications" on public.notifications;
+create policy "Users can read own notifications"
   on public.notifications for select
   using (auth.uid() = user_id);
 
-create policy if not exists "Users can insert own notifications"
+drop policy if exists "Users can insert own notifications" on public.notifications;
+create policy "Users can insert own notifications"
   on public.notifications for insert
   with check (auth.uid() = user_id);
 
-create policy if not exists "Users can update own notifications"
+drop policy if exists "Users can update own notifications" on public.notifications;
+create policy "Users can update own notifications"
   on public.notifications for update
   using (auth.uid() = user_id)
   with check (auth.uid() = user_id);

@@ -56,6 +56,7 @@ export default function NotificationsBell() {
       const { data, error } = await supabase
         .from("notifications")
         .select("id, title, message, link, type, read_at, created_at")
+        .eq("user_id", user.id)
         .order("created_at", { ascending: false })
         .limit(20);
       if (error) throw error;
@@ -138,13 +139,16 @@ export default function NotificationsBell() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" className="relative">
-          <Bell className="h-5 w-5" />
-          {unreadCount > 0 && (
-            <Badge className="absolute -top-1 -right-1 h-5 px-1 text-xs" variant="default">
-              {unreadCount}
-            </Badge>
-          )}
+        <Button variant="ghost" className="flex items-center gap-2">
+          <span className="relative inline-flex items-center">
+            <Bell className="h-5 w-5" />
+            {unreadCount > 0 && (
+              <Badge className="absolute -top-1 -right-1 h-5 px-1 text-xs" variant="default">
+                {unreadCount}
+              </Badge>
+            )}
+          </span>
+          <span className="hidden sm:inline">Notificações</span>
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-80">
