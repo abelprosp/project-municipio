@@ -9,6 +9,7 @@ import Auth from "./pages/Auth";
 import Municipalities from "./pages/Municipalities";
 import Projects from "./pages/Projects";
 import Programs from "./pages/Programs";
+import { UserControlPage } from "./pages/UserControl";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -50,6 +51,14 @@ const App = () => (
             element={
               <MainLayout>
                 <Programs />
+              </MainLayout>
+            }
+          />
+          <Route
+            path="/user-control"
+            element={
+              <MainLayout>
+                <UserControlPage />
               </MainLayout>
             }
           />

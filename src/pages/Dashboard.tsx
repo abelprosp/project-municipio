@@ -13,6 +13,8 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, PieCha
 import { Badge } from "@/components/ui/badge";
 import { UserControlPanel } from "@/components/user/UserControlPanel";
 import { useUserControl } from "@/hooks/use-user-control";
+import { PermissionsDebug } from "@/components/debug/PermissionsDebug";
+import { TestCreateButtons } from "@/components/debug/TestCreateButtons";
 
 interface DashboardStats {
   totalMunicipalities: number;
@@ -593,6 +595,12 @@ const Dashboard = () => {
           </div>
         </CardContent>
       </Card>
+
+      {/* Debug de Permissões - Remover após configuração */}
+      <PermissionsDebug />
+
+      {/* Teste de Botões de Criação - Remover após configuração */}
+      <TestCreateButtons />
 
       {/* Painel de Controle do Usuário */}
       <UserControlPanel />

@@ -1,4 +1,4 @@
-import { Home, Building2, FolderKanban, BookOpen, LogOut } from "lucide-react";
+import { Home, Building2, FolderKanban, BookOpen, LogOut, User } from "lucide-react";
 import { NavLink, useNavigate } from "react-router-dom";
 import {
   Sidebar,
@@ -19,6 +19,7 @@ const menuItems = [
   { title: "Municípios", url: "/municipalities", icon: Building2 },
   { title: "Projetos", url: "/projects", icon: FolderKanban },
   { title: "Programas", url: "/programs", icon: BookOpen },
+  { title: "Meu Perfil", url: "/user-control", icon: User },
 ];
 
 export function AppSidebar() {
