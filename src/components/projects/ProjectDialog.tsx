@@ -23,11 +23,13 @@ import { supabase } from "@/integrations/supabase/client";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { generateProjectPdfById } from "@/lib/pdf";
 import { FileText, PlusCircle } from "lucide-react";
+import { usePermissions } from "@/hooks/use-permissions";
+import { useUserControl } from "@/hooks/use-user-control";
 
 type AmendmentType = "extra" | "individual" | "rp2" | "outro";
 type ProjectStatus = 
   | "em_criacao"
-  | "enviado"
+  | "em_elaboracao"
   | "em_analise"
   | "em_complementacao"
   | "solicitado_documentacao"
@@ -79,6 +81,8 @@ export function ProjectDialog({
   onOpenReport,
 }: ProjectDialogProps) {
   const { toast } = useToast();
+  const { permissions } = usePermissions();
+  const { logActivity } = useUserControl();
   const [loading, setLoading] = useState(false);
   const [municipalities, setMunicipalities] = useState<any[]>([]);
   const [programs, setPrograms] = useState<any[]>([]);
@@ -208,6 +212,20 @@ export function ProjectDialog({
           title: "Projeto atualizado",
           description: "As informações foram salvas com sucesso.",
         });
+
+        // Log da atividade
+        await logActivity(
+          "update",
+          "project",
+          project.id,
+          formData.object || "Projeto",
+          `Projeto "${formData.object || 'Sem título'}" foi atualizado`,
+          { 
+            municipality_id: formData.municipality_id,
+            status: formData.status,
+            year: formData.year
+          }
+        );
       } else {
         const { error } = await supabase
           .from("projects")
@@ -229,6 +247,20 @@ export function ProjectDialog({
           title: "Projeto cadastrado",
           description: "O projeto foi criado com sucesso.",
         });
+
+        // Log da atividade
+        await logActivity(
+          "create",
+          "project",
+          "new",
+          formData.object || "Projeto",
+          `Novo projeto "${formData.object || 'Sem título'}" foi criado`,
+          { 
+            municipality_id: formData.municipality_id,
+            status: formData.status,
+            year: formData.year
+          }
+        );
       }
 
       onSuccess();
@@ -500,7 +532,7 @@ export function ProjectDialog({
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="em_criacao">Em Criação</SelectItem>
-                      <SelectItem value="enviado">Enviado</SelectItem>
+                      <SelectItem value="em_elaboracao">Em Elaboração</SelectItem>
                       <SelectItem value="em_analise">Em Análise</SelectItem>
                       <SelectItem value="em_complementacao">Em Complementação</SelectItem>
                       <SelectItem value="solicitado_documentacao">Solicitado Documentação</SelectItem>
@@ -599,7 +631,7 @@ export function ProjectDialog({
               </div>
             </div>
             <DialogFooter className="mt-4 flex items-center justify-between gap-2">
-              {project?.id && (
+              {project?.id && permissions.canManageProjects && (
                 <div className="flex items-center gap-2">
                   <Button type="button" variant="secondary" onClick={handleArchive} disabled={loading}>
                     Arquivar
@@ -619,9 +651,11 @@ export function ProjectDialog({
               >
                 Cancelar
               </Button>
-              <Button type="submit" disabled={loading}>
-                {loading ? "Salvando..." : "Salvar"}
-              </Button>
+              {permissions.canManageProjects && (
+                <Button type="submit" disabled={loading}>
+                  {loading ? "Salvando..." : "Salvar"}
+                </Button>
+              )}
             </DialogFooter>
           </form>
         </ScrollArea>

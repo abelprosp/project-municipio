@@ -40,7 +40,7 @@ const formatCurrency = (value: number) => {
 const getStatusBadge = (status: string) => {
   const variants: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
     em_criacao: "secondary",
-    enviado: "outline",
+    em_elaboracao: "outline",
     em_analise: "outline",
     em_complementacao: "outline",
     solicitado_documentacao: "outline",
@@ -55,7 +55,7 @@ const getStatusBadge = (status: string) => {
 
   const labels: Record<string, string> = {
     em_criacao: "Em Criação",
-    enviado: "Enviado",
+    em_elaboracao: "Em Elaboração",
     em_analise: "Em Análise",
     em_complementacao: "Em Complementação",
     solicitado_documentacao: "Solicitado Documentação",

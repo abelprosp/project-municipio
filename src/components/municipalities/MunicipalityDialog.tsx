@@ -13,6 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { usePermissions } from "@/hooks/use-permissions";
 
 interface Municipality {
   id?: string;
@@ -38,6 +39,7 @@ export function MunicipalityDialog({
   onSuccess,
 }: MunicipalityDialogProps) {
   const { toast } = useToast();
+  const { permissions } = usePermissions();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState<Municipality>(
     municipality || {
@@ -210,7 +212,7 @@ export function MunicipalityDialog({
             </div>
           </div>
           <DialogFooter className="flex items-center justify-between gap-2">
-            {municipality?.id && (
+            {municipality?.id && permissions.canManageMunicipalities && (
               <div className="flex items-center gap-2">
                 <Button type="button" variant="secondary" onClick={handleArchive} disabled={loading}>
                   Arquivar
@@ -227,9 +229,11 @@ export function MunicipalityDialog({
             >
               Cancelar
             </Button>
-            <Button type="submit" disabled={loading}>
-              {loading ? "Salvando..." : "Salvar"}
-            </Button>
+            {permissions.canManageMunicipalities && (
+              <Button type="submit" disabled={loading}>
+                {loading ? "Salvando..." : "Salvar"}
+              </Button>
+            )}
           </DialogFooter>
         </form>
       </DialogContent>

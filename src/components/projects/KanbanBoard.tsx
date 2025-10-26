@@ -15,7 +15,7 @@ import ProjectInfoDialog from "@/components/projects/ProjectInfoDialog";
 
 type ProjectStatus =
   | "em_criacao"
-  | "enviado"
+  | "em_elaboracao"
   | "em_analise"
   | "em_complementacao"
   | "solicitado_documentacao"
@@ -47,7 +47,7 @@ interface Movement {
 
 const STATUS_LABEL: Record<ProjectStatus, string> = {
   em_criacao: "Em Criação",
-  enviado: "Enviado",
+  em_elaboracao: "Em Elaboração",
   em_analise: "Em Análise",
   em_complementacao: "Em Complementação",
   solicitado_documentacao: "Solicitado Documentação",
@@ -62,7 +62,7 @@ const STATUS_LABEL: Record<ProjectStatus, string> = {
 
 const BOARD_COLUMNS: ProjectStatus[] = [
   "em_criacao",
-  "enviado",
+  "em_elaboracao",
   "em_analise",
   "em_complementacao",
   "solicitado_documentacao",
@@ -314,7 +314,7 @@ export function KanbanBoard() {
   const projectsByColumn = useMemo(() => {
     const map: Record<ProjectStatus, Project[]> = {
       em_criacao: [],
-      enviado: [],
+      em_elaboracao: [],
       em_analise: [],
       em_complementacao: [],
       solicitado_documentacao: [],

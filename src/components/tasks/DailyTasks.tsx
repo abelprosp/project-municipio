@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 
 type ProjectStatus =
   | "em_criacao"
-  | "enviado"
+  | "em_elaboracao"
   | "em_analise"
   | "em_complementacao"
   | "solicitado_documentacao"
@@ -121,7 +121,7 @@ export const DailyTasks = () => {
   const statusLabel = (status: ProjectStatus) => {
     const labels: Record<ProjectStatus, string> = {
       em_criacao: "Em Criação",
-      enviado: "Enviado",
+      em_elaboracao: "Em Elaboração",
       em_analise: "Em Análise",
       em_complementacao: "Em Complementação",
       solicitado_documentacao: "Solicitado Documentação",

@@ -304,7 +304,7 @@ export type Database = {
       app_role: "admin" | "gestor_municipal" | "visualizador"
       project_status:
         | "em_criacao"
-        | "enviado"
+        | "em_elaboracao"
         | "em_analise"
         | "clausula_suspensiva"
         | "aprovado"
@@ -444,7 +444,7 @@ export const Constants = {
       app_role: ["admin", "gestor_municipal", "visualizador"],
       project_status: [
         "em_criacao",
-        "enviado",
+        "em_elaboracao",
         "em_analise",
         "clausula_suspensiva",
         "aprovado",

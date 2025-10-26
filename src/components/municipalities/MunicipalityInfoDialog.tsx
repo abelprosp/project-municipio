@@ -2,6 +2,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { usePermissions } from "@/hooks/use-permissions";
 
 interface Municipality {
   id: string;
@@ -10,6 +11,7 @@ interface Municipality {
   manager: string | null;
   email: string | null;
   phone: string | null;
+  notes?: string | null;
 }
 
 interface MunicipalityInfoDialogProps {
@@ -20,12 +22,14 @@ interface MunicipalityInfoDialogProps {
 }
 
 export default function MunicipalityInfoDialog({ open, onOpenChange, municipality, onEdit }: MunicipalityInfoDialogProps) {
+  const { permissions } = usePermissions();
+  
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[640px] max-h-[90vh]">
         <DialogHeader>
           <DialogTitle>Detalhes do Município</DialogTitle>
-          {onEdit && (
+          {onEdit && permissions.canManageMunicipalities && (
             <div className="mt-2">
               <Button size="sm" onClick={onEdit}>Editar</Button>
             </div>
@@ -57,6 +61,12 @@ export default function MunicipalityInfoDialog({ open, onOpenChange, municipalit
               <Label className="text-xs text-muted-foreground">E-mail</Label>
               <div className="font-medium">{municipality?.email || "—"}</div>
             </div>
+            {municipality?.notes && (
+              <div>
+                <Label className="text-xs text-muted-foreground">Observações</Label>
+                <div className="mt-1 text-sm">{municipality.notes}</div>
+              </div>
+            )}
           </div>
         </ScrollArea>
       </DialogContent>

@@ -7,6 +7,7 @@ import { Plus } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { ProgramDialog } from "@/components/programs/ProgramDialog";
 import ProgramInfoDialog from "@/components/programs/ProgramInfoDialog";
+import { usePermissions } from "@/hooks/use-permissions";
 
 interface Program {
   id: string;
@@ -25,6 +26,7 @@ const Programs = () => {
   const [infoDialogOpen, setInfoDialogOpen] = useState(false);
   const [detailProgram, setDetailProgram] = useState<Program | null>(null);
   const { toast } = useToast();
+  const { permissions } = usePermissions();
 
   useEffect(() => {
     loadPrograms();
@@ -70,20 +72,24 @@ const Programs = () => {
           <h2 className="text-3xl font-bold tracking-tight">Programas</h2>
           <p className="text-muted-foreground">Gerencie programas PAC e Transferegov</p>
         </div>
-        <Button onClick={() => { setSelectedProgram(undefined); setDialogOpen(true); }}>
-          <Plus className="mr-2 h-4 w-4" />
-          Novo Programa
-        </Button>
+        {permissions.canManagePrograms && (
+          <Button onClick={() => { setSelectedProgram(undefined); setDialogOpen(true); }}>
+            <Plus className="mr-2 h-4 w-4" />
+            Novo Programa
+          </Button>
+        )}
       </div>
 
       {programs.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12">
             <p className="text-muted-foreground mb-4">Nenhum programa cadastrado ainda</p>
-            <Button onClick={() => setDialogOpen(true)}>
-              <Plus className="mr-2 h-4 w-4" />
-              Cadastrar Primeiro Programa
-            </Button>
+            {permissions.canManagePrograms && (
+              <Button onClick={() => setDialogOpen(true)}>
+                <Plus className="mr-2 h-4 w-4" />
+                Cadastrar Primeiro Programa
+              </Button>
+            )}
           </CardContent>
         </Card>
       ) : (

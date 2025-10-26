@@ -6,6 +6,7 @@ import { Plus } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { MunicipalityDialog } from "@/components/municipalities/MunicipalityDialog";
 import MunicipalityInfoDialog from "@/components/municipalities/MunicipalityInfoDialog";
+import { usePermissions } from "@/hooks/use-permissions";
 
 interface Municipality {
   id: string;
@@ -24,6 +25,7 @@ const Municipalities = () => {
   const [infoDialogOpen, setInfoDialogOpen] = useState(false);
   const [detailMunicipality, setDetailMunicipality] = useState<Municipality | null>(null);
   const { toast } = useToast();
+  const { permissions } = usePermissions();
 
   useEffect(() => {
     loadMunicipalities();
@@ -64,20 +66,24 @@ const Municipalities = () => {
           <h2 className="text-3xl font-bold tracking-tight">Municípios</h2>
           <p className="text-muted-foreground">Gerencie os municípios cadastrados</p>
         </div>
-        <Button onClick={() => { setSelectedMunicipality(undefined); setDialogOpen(true); }}>
-          <Plus className="mr-2 h-4 w-4" />
-          Novo Município
-        </Button>
+        {permissions.canManageMunicipalities && (
+          <Button onClick={() => { setSelectedMunicipality(undefined); setDialogOpen(true); }}>
+            <Plus className="mr-2 h-4 w-4" />
+            Novo Município
+          </Button>
+        )}
       </div>
 
       {municipalities.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12">
             <p className="text-muted-foreground mb-4">Nenhum município cadastrado ainda</p>
-            <Button onClick={() => { setSelectedMunicipality(undefined); setDialogOpen(true); }}>
-              <Plus className="mr-2 h-4 w-4" />
-              Cadastrar Primeiro Município
-            </Button>
+            {permissions.canManageMunicipalities && (
+              <Button onClick={() => { setSelectedMunicipality(undefined); setDialogOpen(true); }}>
+                <Plus className="mr-2 h-4 w-4" />
+                Cadastrar Primeiro Município
+              </Button>
+            )}
           </CardContent>
         </Card>
       ) : (

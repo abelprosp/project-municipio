@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { usePermissions } from "@/hooks/use-permissions";
 
 interface Program {
   id?: string;
@@ -44,6 +45,7 @@ export function ProgramDialog({
   onSuccess,
 }: ProgramDialogProps) {
   const { toast } = useToast();
+  const { permissions } = usePermissions();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState<Program>(
     program || {
@@ -262,7 +264,7 @@ export function ProgramDialog({
             </div>
           </div>
           <DialogFooter className="flex items-center justify-between gap-2">
-            {program?.id && (
+            {program?.id && permissions.canManagePrograms && (
               <div className="flex items-center gap-2">
                 <Button type="button" variant="secondary" onClick={handleArchive} disabled={loading}>
                   Arquivar
@@ -279,9 +281,11 @@ export function ProgramDialog({
             >
               Cancelar
             </Button>
-            <Button type="submit" disabled={loading}>
-              {loading ? "Salvando..." : "Salvar"}
-            </Button>
+            {permissions.canManagePrograms && (
+              <Button type="submit" disabled={loading}>
+                {loading ? "Salvando..." : "Salvar"}
+              </Button>
+            )}
           </DialogFooter>
         </form>
       </DialogContent>

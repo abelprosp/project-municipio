@@ -3,6 +3,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { usePermissions } from "@/hooks/use-permissions";
 
 interface Program {
   id: string;
@@ -11,6 +12,7 @@ interface Program {
   deadline: string | null;
   status: string;
   notes: string | null;
+  created_at?: string;
 }
 
 interface ProgramInfoDialogProps {
@@ -27,6 +29,8 @@ const formatDate = (date: string | null) => {
 };
 
 export default function ProgramInfoDialog({ open, onOpenChange, program, onEdit }: ProgramInfoDialogProps) {
+  const { permissions } = usePermissions();
+  
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[640px] max-h-[90vh]">
@@ -34,7 +38,7 @@ export default function ProgramInfoDialog({ open, onOpenChange, program, onEdit 
           <DialogTitle>Detalhes do Programa</DialogTitle>
           <div className="mt-2 flex items-center gap-2">
             <Badge variant={program?.status === "Aberto" ? "default" : "secondary"}>{program?.status || "—"}</Badge>
-            {onEdit && <Button size="sm" onClick={onEdit}>Editar</Button>}
+            {onEdit && permissions.canManagePrograms && <Button size="sm" onClick={onEdit}>Editar</Button>}
           </div>
         </DialogHeader>
         <ScrollArea className="max-h-[60vh] pr-4">

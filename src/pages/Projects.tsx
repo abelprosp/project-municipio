@@ -15,6 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { generateProjectsListPdf, generateProjectPdfById } from "@/lib/pdf";
+import { usePermissions } from "@/hooks/use-permissions";
 
 interface Project {
   id: string;
@@ -57,6 +58,7 @@ const Projects = () => {
   const [detailProject, setDetailProject] = useState<any | null>(null);
   const [latestResponsibleMap, setLatestResponsibleMap] = useState<Record<string, string>>({});
   const { toast } = useToast();
+  const { permissions } = usePermissions();
 
   useEffect(() => {
     loadOptions();
@@ -186,7 +188,7 @@ const Projects = () => {
   const getStatusBadge = (status: string) => {
     const variants: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
       em_criacao: "secondary",
-      enviado: "outline",
+      em_elaboracao: "outline",
       em_analise: "outline",
       em_complementacao: "outline",
       solicitado_documentacao: "outline",
@@ -201,7 +203,7 @@ const Projects = () => {
 
     const labels: Record<string, string> = {
       em_criacao: "Em Criação",
-      enviado: "Enviado",
+      em_elaboracao: "Em Elaboração",
       em_analise: "Em Análise",
       em_complementacao: "Em Complementação",
       solicitado_documentacao: "Solicitado Documentação",
@@ -261,10 +263,12 @@ const Projects = () => {
           >
             <Activity className="mr-2 h-4 w-4" /> Execução
           </Button>
-          <Button onClick={() => { setSelectedProject(undefined); setDialogOpen(true); }}>
-            <Plus className="mr-2 h-4 w-4" />
-            Novo Projeto
-          </Button>
+          {permissions.canManageProjects && (
+            <Button onClick={() => { setSelectedProject(undefined); setDialogOpen(true); }}>
+              <Plus className="mr-2 h-4 w-4" />
+              Novo Projeto
+            </Button>
+          )}
         </div>
       </div>
 
@@ -332,7 +336,7 @@ const Projects = () => {
               <SelectContent>
                 <SelectItem value="__all__">Todos</SelectItem>
                 <SelectItem value="em_criacao">Em Criação</SelectItem>
-                <SelectItem value="enviado">Enviado</SelectItem>
+                <SelectItem value="em_elaboracao">Em Elaboração</SelectItem>
                 <SelectItem value="em_analise">Em Análise</SelectItem>
                 <SelectItem value="em_complementacao">Em Complementação</SelectItem>
                 <SelectItem value="solicitado_documentacao">Solicitado Documentação</SelectItem>
@@ -370,10 +374,12 @@ const Projects = () => {
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12">
             <p className="text-muted-foreground mb-4">Nenhum projeto cadastrado ainda</p>
-            <Button onClick={() => { setSelectedProject(undefined); setDialogOpen(true); }}>
-              <Plus className="mr-2 h-4 w-4" />
-              Cadastrar Primeiro Projeto
-            </Button>
+            {permissions.canManageProjects && (
+              <Button onClick={() => { setSelectedProject(undefined); setDialogOpen(true); }}>
+                <Plus className="mr-2 h-4 w-4" />
+                Cadastrar Primeiro Projeto
+              </Button>
+            )}
           </CardContent>
         </Card>
       ) : (

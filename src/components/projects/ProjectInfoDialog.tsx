@@ -4,11 +4,12 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CalendarDays, FileText, PlusCircle, User } from "lucide-react";
+import { usePermissions } from "@/hooks/use-permissions";
 
 type AmendmentType = "extra" | "individual" | "rp2" | "outro";
 type ProjectStatus =
   | "em_criacao"
-  | "enviado"
+  | "em_elaboracao"
   | "em_analise"
   | "em_complementacao"
   | "solicitado_documentacao"
@@ -22,7 +23,7 @@ type ProjectStatus =
 
 const STATUS_LABEL: Record<ProjectStatus, string> = {
   em_criacao: "Em Criação",
-  enviado: "Enviado",
+  em_elaboracao: "Em Elaboração",
   em_analise: "Em Análise",
   em_complementacao: "Em Complementação",
   solicitado_documentacao: "Solicitado Documentação",
@@ -55,6 +56,12 @@ interface Project {
   document_request_date?: string | null;
   document_deadline_date?: string | null;
   notes: string | null;
+  municipalities?: {
+    name: string;
+  };
+  programs?: {
+    name: string;
+  } | null;
 }
 
 interface ProjectInfoDialogProps {
@@ -83,6 +90,8 @@ export function ProjectInfoDialog({
   onOpenReport,
   latestResponsible,
 }: ProjectInfoDialogProps) {
+  const { permissions } = usePermissions();
+  
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[720px] max-h-[90vh]">
@@ -96,7 +105,7 @@ export function ProjectInfoDialog({
               <Button size="sm" variant="ghost" onClick={() => onOpenReport?.({ id: project.id! })}>
                 <FileText className="h-3 w-3 mr-1" /> Relatórios
               </Button>
-              {onEdit && (
+              {onEdit && permissions.canManageProjects && (
                 <Button size="sm" onClick={onEdit}>
                   Editar
                 </Button>
@@ -116,6 +125,17 @@ export function ProjectInfoDialog({
                 <Badge variant="secondary">
                   {project?.status ? STATUS_LABEL[project.status as ProjectStatus] : "—"}
                 </Badge>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div>
+                <Label className="text-xs text-muted-foreground">Município</Label>
+                <div className="font-medium">{project?.municipalities?.name || "—"}</div>
+              </div>
+              <div>
+                <Label className="text-xs text-muted-foreground">Programa</Label>
+                <div className="font-medium">{project?.programs?.name || "—"}</div>
               </div>
             </div>
 
