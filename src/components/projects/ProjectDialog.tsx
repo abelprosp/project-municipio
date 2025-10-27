@@ -176,11 +176,11 @@ export function ProjectDialog({
       counterpart_amount: data.counterpart_amount,
       execution_percentage: data.execution_percentage,
       status: data.status,
-      start_date: data.start_date,
-      end_date: data.end_date,
-      accountability_date: data.accountability_date,
-      document_request_date: data.document_request_date ?? null,
-      document_deadline_date: data.document_deadline_date ?? null,
+      start_date: data.start_date && data.start_date.trim() !== "" ? data.start_date : null,
+      end_date: data.end_date && data.end_date.trim() !== "" ? data.end_date : null,
+      accountability_date: data.accountability_date && data.accountability_date.trim() !== "" ? data.accountability_date : null,
+      document_request_date: data.document_request_date && data.document_request_date.trim() !== "" ? data.document_request_date : null,
+      document_deadline_date: data.document_deadline_date && data.document_deadline_date.trim() !== "" ? data.document_deadline_date : null,
       notes: data.notes,
     };
   };
