@@ -3,8 +3,11 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { CalendarDays, FileText, PlusCircle, User } from "lucide-react";
+import { CalendarDays, FileText, PlusCircle, User, Download, Trash2, Upload } from "lucide-react";
 import { usePermissions } from "@/hooks/use-permissions";
+import { useUserControl } from "@/hooks/use-user-control";
+import { useEffect, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
 
 type AmendmentType = "extra" | "individual" | "rp2" | "outro";
 type ProjectStatus =
@@ -91,6 +94,83 @@ export function ProjectInfoDialog({
   latestResponsible,
 }: ProjectInfoDialogProps) {
   const { permissions } = usePermissions();
+  const { logActivity } = useUserControl();
+  const [documents, setDocuments] = useState<any[]>([]);
+  const [uploading, setUploading] = useState(false);
+
+  useEffect(() => {
+    if (project?.id) loadDocuments(project.id);
+  }, [project?.id]);
+
+  const loadDocuments = async (projectId: string) => {
+    const { data } = await supabase
+      .from("project_documents")
+      .select("*")
+      .eq("project_id", projectId)
+      .order("created_at", { ascending: false });
+    setDocuments(data || []);
+  };
+
+  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!project?.id) return;
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const filePath = `project_${project.id}/${Date.now()}_${file.name}`;
+      const { data: uploadRes, error: uploadErr } = await supabase.storage
+        .from("project-docs")
+        .upload(filePath, file, { cacheControl: "3600", upsert: false });
+      if (uploadErr) throw uploadErr;
+
+      const { data: { user } } = await supabase.auth.getUser();
+      const { error: insertErr } = await supabase
+        .from("project_documents")
+        .insert({
+          project_id: project.id,
+          name: file.name,
+          path: uploadRes?.path || filePath,
+          size: file.size,
+          content_type: file.type,
+          uploaded_by: user?.id || null,
+        });
+      if (insertErr) throw insertErr;
+      await loadDocuments(project.id);
+      await logActivity(
+        "upload_document",
+        "project",
+        project.id,
+        project.object || "Projeto",
+        `Documento "${file.name}" enviado`
+      );
+    } catch (err) {
+      // opcional: toast
+    } finally {
+      setUploading(false);
+      e.target.value = "";
+    }
+  };
+
+  const handleDelete = async (doc: any) => {
+    if (!project?.id) return;
+    try {
+      await supabase.storage.from("project-docs").remove([doc.path]);
+      await supabase.from("project_documents").delete().eq("id", doc.id);
+      await loadDocuments(project.id);
+      await logActivity(
+        "delete_document",
+        "project",
+        project.id,
+        project.object || "Projeto",
+        `Documento "${doc.name}" removido`
+      );
+    } catch {}
+  };
+
+  const getPublicUrl = (path: string) => {
+    const { data } = supabase.storage.from("project-docs").getPublicUrl(path);
+    return data.publicUrl;
+  };
   
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -206,7 +286,7 @@ export function ProjectInfoDialog({
               </div>
               <div>
                 <Label className="text-xs text-muted-foreground">Execução (%)</Label>
-                <div className="font-medium">{project?.execution_percentage ?? "—"}</div>
+                <div className="font-medium">{project?.execution_percentage !== undefined && project?.execution_percentage !== null ? `${Number(project.execution_percentage).toFixed(2)}%` : "—"}</div>
               </div>
             </div>
 
@@ -225,6 +305,48 @@ export function ProjectInfoDialog({
               <Label className="text-xs text-muted-foreground">Observações</Label>
               <div className="mt-1 text-sm">{project?.notes || "—"}</div>
             </div>
+
+          {/* Documentos */}
+          {project?.id && (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label className="text-xs text-muted-foreground">Documentos</Label>
+                {permissions.canManageProjects && (
+                  <div>
+                    <input id="upload-doc" type="file" onChange={handleUpload} className="hidden" />
+                    <Button size="sm" disabled={uploading} onClick={() => document.getElementById("upload-doc")?.click()}>
+                      <Upload className="h-3 w-3 mr-1" /> {uploading ? "Enviando..." : "Adicionar"}
+                    </Button>
+                  </div>
+                )}
+              </div>
+              <div className="space-y-2">
+                {documents.length === 0 && (
+                  <div className="text-sm text-muted-foreground">Nenhum documento enviado.</div>
+                )}
+                {documents.map((doc) => (
+                  <div key={doc.id} className="flex items-center justify-between border rounded p-2">
+                    <div className="text-sm">
+                      <div className="font-medium">{doc.name}</div>
+                      <div className="text-xs text-muted-foreground">{new Date(doc.created_at).toLocaleString("pt-BR")}</div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <a href={getPublicUrl(doc.path)} target="_blank" rel="noreferrer">
+                        <Button size="sm" variant="outline">
+                          <Download className="h-3 w-3 mr-1" /> Baixar
+                        </Button>
+                      </a>
+                      {permissions.canManageProjects && (
+                        <Button size="sm" variant="destructive" onClick={() => handleDelete(doc)}>
+                          <Trash2 className="h-3 w-3 mr-1" /> Excluir
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
             {project?.id && latestResponsible && (
               <div className="flex items-center gap-2 text-sm">

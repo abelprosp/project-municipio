@@ -14,15 +14,19 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { usePermissions } from "@/hooks/use-permissions";
+import { useUserControl } from "@/hooks/use-user-control";
 
 interface Municipality {
   id?: string;
   name: string;
   state: string;
+  cnpj: string | null;
+  address: string | null;
   manager: string | null;
   email: string | null;
   phone: string | null;
   notes?: string | null;
+  receives_projects?: boolean;
 }
 
 interface MunicipalityDialogProps {
@@ -40,15 +44,19 @@ export function MunicipalityDialog({
 }: MunicipalityDialogProps) {
   const { toast } = useToast();
   const { permissions } = usePermissions();
+  const { logActivity } = useUserControl();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState<Municipality>(
     municipality || {
       name: "",
       state: "",
+      cnpj: "",
+      address: "",
       manager: "",
       email: "",
       phone: "",
       notes: "",
+      receives_projects: true,
     }
   );
 
@@ -69,6 +77,13 @@ export function MunicipalityDialog({
           title: "Município atualizado",
           description: "As informações foram salvas com sucesso.",
         });
+        await logActivity(
+          "update",
+          "municipality",
+          municipality.id,
+          formData.name || "Município",
+          `Município "${formData.name}" atualizado`
+        );
       } else {
         const { error } = await supabase
           .from("municipalities")
@@ -80,6 +95,14 @@ export function MunicipalityDialog({
           title: "Município cadastrado",
           description: "O município foi criado com sucesso.",
         });
+        // Não temos o ID imediatamente sem select returning; logaremos com nome
+        await logActivity(
+          "create",
+          "municipality",
+          "new",
+          formData.name || "Município",
+          `Município "${formData.name}" criado`
+        );
       }
 
       onSuccess();
@@ -109,6 +132,13 @@ export function MunicipalityDialog({
       toast({ title: "Município arquivado", description: "Marcado como arquivado nas observações." });
       onSuccess();
       onOpenChange(false);
+      await logActivity(
+        "archive",
+        "municipality",
+        municipality.id,
+        formData.name || "Município",
+        `Município "${formData.name}" arquivado`
+      );
     } catch (err: any) {
       toast({ title: "Erro ao arquivar", description: err.message, variant: "destructive" });
     } finally {
@@ -125,6 +155,13 @@ export function MunicipalityDialog({
       toast({ title: "Município excluído", description: "O registro foi removido." });
       onSuccess();
       onOpenChange(false);
+      await logActivity(
+        "delete",
+        "municipality",
+        municipality.id,
+        formData.name || "Município",
+        `Município "${formData.name}" excluído`
+      );
     } catch (err: any) {
       toast({ title: "Erro ao excluir", description: err.message, variant: "destructive" });
     } finally {
@@ -169,6 +206,26 @@ export function MunicipalityDialog({
               />
             </div>
             <div className="grid gap-2">
+              <Label htmlFor="cnpj">CNPJ</Label>
+              <Input
+                id="cnpj"
+                value={formData.cnpj || ""}
+                onChange={(e) =>
+                  setFormData({ ...formData, cnpj: e.target.value })
+                }
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="address">Endereço</Label>
+              <Input
+                id="address"
+                value={formData.address || ""}
+                onChange={(e) =>
+                  setFormData({ ...formData, address: e.target.value })
+                }
+              />
+            </div>
+            <div className="grid gap-2">
               <Label htmlFor="manager">Gestor Responsável</Label>
               <Input
                 id="manager"
@@ -209,6 +266,18 @@ export function MunicipalityDialog({
                 }
                 rows={3}
               />
+            </div>
+            <div className="flex items-center gap-3">
+              <input
+                id="receives_projects"
+                type="checkbox"
+                className="h-4 w-4"
+                checked={formData.receives_projects ?? true}
+                onChange={(e) =>
+                  setFormData({ ...formData, receives_projects: e.target.checked })
+                }
+              />
+              <Label htmlFor="receives_projects">Recebe Projetos</Label>
             </div>
           </div>
           <DialogFooter className="flex items-center justify-between gap-2">

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -25,6 +25,7 @@ import {
   PlayCircle
 } from "lucide-react";
 import { useUserControl, UserTask, UserNotification } from "@/hooks/use-user-control";
+import { supabase } from "@/integrations/supabase/client";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
@@ -47,23 +48,91 @@ export function UserControlPanel({ className }: UserControlPanelProps) {
   } = useUserControl();
 
   const [newTaskDialogOpen, setNewTaskDialogOpen] = useState(false);
+  const [editTaskDialogOpen, setEditTaskDialogOpen] = useState(false);
+  const [editingTask, setEditingTask] = useState<UserTask | null>(null);
   const [settingsDialogOpen, setSettingsDialogOpen] = useState(false);
+  const [taskStatusFilter, setTaskStatusFilter] = useState<'all' | 'in_progress' | 'completed'>('all');
   const [newTask, setNewTask] = useState({
     title: "",
     description: "",
     priority: "medium" as const,
     dueDate: "",
-    tags: ""
+    tags: "",
+    assignedTo: ""
   });
 
+  const [users, setUsers] = useState<{ id: string; name: string; email: string }[]>([]);
+  useEffect(() => {
+    (async () => {
+      const { data } = await supabase.from("profiles").select("id, name, email").order("name");
+      setUsers(data || []);
+    })();
+  }, []);
+
   const stats = getUserStats();
+
+  type TaskPriority = 'low' | 'medium' | 'high' | 'urgent';
+  type TaskStatus = 'pending' | 'in_progress' | 'completed' | 'cancelled';
+  interface EditFormState {
+    title: string;
+    description: string;
+    priority: TaskPriority;
+    status: TaskStatus;
+    dueDate: string;
+    tags: string;
+    assignedTo?: string;
+  }
+
+  const [editForm, setEditForm] = useState<EditFormState>({
+    title: "",
+    description: "",
+    priority: "medium",
+    status: "pending",
+    dueDate: "",
+    tags: "",
+    assignedTo: ""
+  });
+
+  const openEditTask = (task: UserTask) => {
+    setEditingTask(task);
+    setEditForm({
+      title: task.title,
+      description: task.description || "",
+      priority: task.priority,
+      status: task.status,
+      dueDate: task.due_date ? task.due_date.substring(0, 10) : "",
+      tags: (task.tags || []).join(", "),
+      assignedTo: task.assigned_to || ""
+    });
+    setEditTaskDialogOpen(true);
+  };
+
+  const handleSaveTask = async () => {
+    if (!editingTask) return;
+    try {
+      const updates: any = {
+        title: editForm.title,
+        description: editForm.description,
+        priority: editForm.priority,
+        status: editForm.status,
+        due_date: editForm.dueDate ? new Date(editForm.dueDate).toISOString() : null,
+        tags: editForm.tags ? editForm.tags.split(",").map(t => t.trim()).filter(Boolean) : [],
+        assigned_to: editForm.assignedTo || null
+      };
+      await updateTask(editingTask.id, updates);
+      setEditTaskDialogOpen(false);
+      setEditingTask(null);
+    } catch (error) {
+      console.error("Erro ao salvar tarefa:", error);
+    }
+  };
 
   const handleCreateTask = async () => {
     try {
       await createTask(
         newTask.title,
         newTask.description,
-        undefined, // assignedTo - pode ser implementado depois
+        newTask.assignedTo || undefined,
         newTask.priority,
         newTask.dueDate || undefined,
         undefined, // relatedEntityType
@@ -76,7 +145,8 @@ export function UserControlPanel({ className }: UserControlPanelProps) {
         description: "",
         priority: "medium",
         dueDate: "",
-        tags: ""
+        tags: "",
+        assignedTo: ""
       });
       setNewTaskDialogOpen(false);
     } catch (error) {
@@ -102,6 +172,38 @@ export function UserControlPanel({ className }: UserControlPanelProps) {
     }
   };
 
+  const getPriorityLabel = (priority: string) => {
+    switch (priority) {
+      case 'urgent': return 'Urgente';
+      case 'high': return 'Alta';
+      case 'medium': return 'Média';
+      case 'low': return 'Baixa';
+      default: return priority;
+    }
+  };
+
+  const compareByDueAndPriority = (a: UserTask, b: UserTask) => {
+    const priorityRank: Record<string, number> = { urgent: 0, high: 1, medium: 2, low: 3 };
+    // 1) Prioridade (menor rank = mais urgente)
+    const prA = priorityRank[a.priority] ?? 99;
+    const prB = priorityRank[b.priority] ?? 99;
+    if (prA !== prB) return prA - prB;
+
+    // 2) Vencimento: primeiro vencidas (overdue), depois mais próximas
+    const now = Date.now();
+    const dueA = a.due_date ? new Date(a.due_date).getTime() : Infinity;
+    const dueB = b.due_date ? new Date(b.due_date).getTime() : Infinity;
+
+    const overdueA = dueA < now ? 1 : 0;
+    const overdueB = dueB < now ? 1 : 0;
+    if (overdueA !== overdueB) return overdueB - overdueA; // 1 antes de 0 (overdue primeiro)
+
+    if (dueA !== dueB) return dueA - dueB; // mais próximo primeiro
+
+    // 3) Desempate por criação (mais antigo primeiro)
+    return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+  };
+
   const getStatusIcon = (status: string) => {
     switch (status) {
       case 'completed': return <CheckCircle className="h-4 w-4 text-green-600" />;
@@ -122,6 +224,7 @@ export function UserControlPanel({ className }: UserControlPanelProps) {
   }
 
   return (
+    <>
     <Card className={className}>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
@@ -190,13 +293,17 @@ export function UserControlPanel({ className }: UserControlPanelProps) {
               <CardContent>
                 <ScrollArea className="h-48">
                   <div className="space-y-2">
-                    {tasks.slice(0, 5).map((task) => (
+                    {tasks
+                      .slice()
+                      .sort(compareByDueAndPriority)
+                      .slice(0, 5)
+                      .map((task) => (
                       <div key={task.id} className="flex items-center justify-between p-2 border rounded">
                         <div className="flex items-center gap-2">
                           {getStatusIcon(task.status)}
                           <span className="text-sm font-medium">{task.title}</span>
                           <Badge variant={getPriorityColor(task.priority)} className="text-xs">
-                            {task.priority}
+                            {getPriorityLabel(task.priority)}
                           </Badge>
                         </div>
                         <span className="text-xs text-muted-foreground">
@@ -280,6 +387,24 @@ export function UserControlPanel({ className }: UserControlPanelProps) {
                         />
                       </div>
                     </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label htmlFor="task-assigned">Responsável (opcional)</Label>
+                        <Select
+                          value={newTask.assignedTo || undefined}
+                          onValueChange={(value: any) => setNewTask(prev => ({ ...prev, assignedTo: value }))}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Selecione um usuário" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {users.map(u => (
+                              <SelectItem key={u.id} value={u.id}>{u.name || u.email}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
                     <div>
                       <Label htmlFor="task-tags">Tags (separadas por vírgula)</Label>
                       <Input
@@ -303,7 +428,19 @@ export function UserControlPanel({ className }: UserControlPanelProps) {
             </div>
 
             <div className="space-y-2">
-              {tasks.map((task) => (
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <span>Filtro:</span>
+                  <Button size="sm" variant={taskStatusFilter === 'all' ? 'default' : 'outline'} onClick={() => setTaskStatusFilter('all')}>Todas</Button>
+                  <Button size="sm" variant={taskStatusFilter === 'in_progress' ? 'default' : 'outline'} onClick={() => setTaskStatusFilter('in_progress')}>Em andamento</Button>
+                  <Button size="sm" variant={taskStatusFilter === 'completed' ? 'default' : 'outline'} onClick={() => setTaskStatusFilter('completed')}>Concluídas</Button>
+                </div>
+              </div>
+              {tasks
+                .filter(t => taskStatusFilter === 'all' ? true : t.status === taskStatusFilter)
+                .slice()
+                .sort(compareByDueAndPriority)
+                .map((task) => (
                 <Card key={task.id}>
                   <CardContent className="p-4">
                     <div className="flex items-start justify-between">
@@ -312,7 +449,7 @@ export function UserControlPanel({ className }: UserControlPanelProps) {
                           {getStatusIcon(task.status)}
                           <h4 className="font-medium">{task.title}</h4>
                           <Badge variant={getPriorityColor(task.priority)} className="text-xs">
-                            {task.priority}
+                            {getPriorityLabel(task.priority)}
                           </Badge>
                         </div>
                         {task.description && (
@@ -352,6 +489,9 @@ export function UserControlPanel({ className }: UserControlPanelProps) {
                             Concluir
                           </Button>
                         )}
+                        <Button size="sm" variant="ghost" onClick={() => openEditTask(task)}>
+                          Editar
+                        </Button>
                       </div>
                     </div>
                   </CardContent>
@@ -518,5 +658,82 @@ export function UserControlPanel({ className }: UserControlPanelProps) {
         </Tabs>
       </CardContent>
     </Card>
+
+    {/* Dialogo de Edição de Tarefa */}
+    <Dialog open={editTaskDialogOpen} onOpenChange={setEditTaskDialogOpen}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Editar Tarefa</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div>
+            <Label htmlFor="edit-title">Título</Label>
+            <Input id="edit-title" value={editForm.title} onChange={(e) => setEditForm(prev => ({ ...prev, title: e.target.value }))} />
+          </div>
+          <div>
+            <Label htmlFor="edit-description">Descrição</Label>
+            <Textarea id="edit-description" value={editForm.description} onChange={(e) => setEditForm(prev => ({ ...prev, description: e.target.value }))} />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="edit-priority">Prioridade</Label>
+              <Select value={editForm.priority} onValueChange={(value: any) => setEditForm(prev => ({ ...prev, priority: value }))}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="low">Baixa</SelectItem>
+                  <SelectItem value="medium">Média</SelectItem>
+                  <SelectItem value="high">Alta</SelectItem>
+                  <SelectItem value="urgent">Urgente</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label htmlFor="edit-status">Status</Label>
+              <Select value={editForm.status} onValueChange={(value: any) => setEditForm(prev => ({ ...prev, status: value }))}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="pending">Pendente</SelectItem>
+                  <SelectItem value="in_progress">Em andamento</SelectItem>
+                  <SelectItem value="completed">Concluída</SelectItem>
+                  <SelectItem value="cancelled">Cancelada</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="edit-due-date">Data de vencimento</Label>
+              <Input id="edit-due-date" type="date" value={editForm.dueDate} onChange={(e) => setEditForm(prev => ({ ...prev, dueDate: e.target.value }))} />
+            </div>
+            <div>
+              <Label htmlFor="edit-tags">Tags (vírgula)</Label>
+              <Input id="edit-tags" value={editForm.tags} onChange={(e) => setEditForm(prev => ({ ...prev, tags: e.target.value }))} />
+            </div>
+          </div>
+          <div>
+            <Label htmlFor="edit-assigned">Responsável (opcional)</Label>
+            <Select value={editForm.assignedTo || undefined} onValueChange={(value: any) => setEditForm(prev => ({ ...prev, assignedTo: value }))}>
+              <SelectTrigger>
+                <SelectValue placeholder="Selecione um usuário" />
+              </SelectTrigger>
+              <SelectContent>
+                {users.map(u => (
+                  <SelectItem key={u.id} value={u.id}>{u.name || u.email}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setEditTaskDialogOpen(false)}>Cancelar</Button>
+            <Button onClick={handleSaveTask}>Salvar</Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+    </>
   );
 }

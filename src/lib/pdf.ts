@@ -188,7 +188,7 @@ export async function generateDashboardPdf(stats: DashboardStats) {
   doc.save(`relatorio-geral-dashboard.pdf`);
 }
 
-export async function generateProjectPdfById(projectId: string) {
+export async function generateProjectPdfById(projectId: string, opts?: { from?: string; to?: string }) {
   const { data: project, error } = await supabase
     .from("projects")
     .select("*, municipalities(name), programs(name, status)")
@@ -196,14 +196,44 @@ export async function generateProjectPdfById(projectId: string) {
     .single();
   if (error || !project) throw error || new Error("Projeto não encontrado");
 
-  const { data: movements } = await supabase
+  let movementsQuery = supabase
     .from("movements")
     .select("*")
     .eq("project_id", projectId)
     .order("date", { ascending: true });
 
+  if (opts?.from) {
+    movementsQuery = movementsQuery.gte("date", opts.from);
+  }
+  if (opts?.to) {
+    movementsQuery = movementsQuery.lte("date", opts.to);
+  }
+
+  const { data: movements } = await movementsQuery;
+
+  // Buscar tarefas relacionadas ao projeto
+  let tasksQuery = supabase
+    .from("user_tasks")
+    .select("id, title, status, priority, due_date, created_at")
+    .eq("related_entity_type", "project")
+    .eq("related_entity_id", projectId)
+    .order("due_date", { ascending: true, nullsFirst: false })
+    .order("created_at", { ascending: true });
+
+  if (opts?.from) {
+    tasksQuery = tasksQuery.gte("created_at", opts.from);
+  }
+  if (opts?.to) {
+    tasksQuery = tasksQuery.lte("created_at", opts.to);
+  }
+
+  const { data: tasks } = await tasksQuery;
+
   const doc = new jsPDF();
-  let y = addStyledHeader(doc, "Relatório do Projeto", project.object || "Projeto");
+  const subtitle = opts?.from || opts?.to
+    ? `Período: ${opts?.from ? formatDateBR(opts.from) : "—"} a ${opts?.to ? formatDateBR(opts.to) : "—"}`
+    : project.object || "Projeto";
+  let y = addStyledHeader(doc, "Relatório do Projeto", subtitle);
 
   // Informações principais do projeto
   y = addSection(doc, "Dados do Projeto", y);
@@ -242,7 +272,7 @@ export async function generateProjectPdfById(projectId: string) {
   const repasse = formatCurrencyBRL(Number(project.transfer_amount));
   const contrapartida = formatCurrencyBRL(Number(project.counterpart_amount));
   const total = formatCurrencyBRL(Number(project.transfer_amount) + Number(project.counterpart_amount));
-  const execucao = `${project.execution_percentage ?? 0}%`;
+  const execucao = `${Number(project.execution_percentage ?? 0).toFixed(2)}%`;
 
   // Primeira linha - Repasse e Contrapartida
   y = addStatCard(doc, "Repasse", repasse, 15, y, 45);
@@ -344,6 +374,50 @@ export async function generateProjectPdfById(projectId: string) {
         }
       }
       y += 8;
+    }
+  }
+
+  // Tarefas relacionadas
+  if (tasks && tasks.length > 0) {
+    y += 15;
+    y = addSection(doc, "Tarefas", y);
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "normal");
+
+    // Cabeçalho das colunas
+    doc.setFont("helvetica", "bold");
+    doc.text("Título", 20, y);
+    doc.text("Status", 120, y);
+    doc.text("Prazo", 160, y);
+    y += 8;
+    doc.setFont("helvetica", "normal");
+
+    for (const t of tasks) {
+      if (y > 270) {
+        doc.addPage();
+        y = addStyledHeader(doc, "Relatório do Projeto", subtitle);
+        y += 10;
+        doc.setFont("helvetica", "bold");
+        doc.text("Título", 20, y);
+        doc.text("Status", 120, y);
+        doc.text("Prazo", 160, y);
+        y += 8;
+        doc.setFont("helvetica", "normal");
+      }
+
+      const title = String(t.title || "—");
+      const status = String(t.status || "—");
+      const due = t.due_date ? formatDateBR(t.due_date) : "—";
+
+      // Título com quebra se longo
+      const titleLines = doc.splitTextToSize(title, 90);
+      doc.text(titleLines, 20, y);
+      // Status e Prazo na mesma linha base
+      doc.text(status, 120, y);
+      doc.text(due, 160, y);
+
+      // Avança Y pelo número de linhas do título
+      y += Math.max(8, titleLines.length * 6);
     }
   }
 

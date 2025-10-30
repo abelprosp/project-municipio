@@ -91,34 +91,43 @@ export type Database = {
       municipalities: {
         Row: {
           created_at: string
+          cnpj: string | null
           email: string | null
           id: string
           manager: string | null
           name: string
           notes: string | null
+          address: string | null
           phone: string | null
+          receives_projects: boolean
           state: string
           updated_at: string
         }
         Insert: {
           created_at?: string
+          cnpj?: string | null
           email?: string | null
           id?: string
           manager?: string | null
           name: string
           notes?: string | null
+          address?: string | null
           phone?: string | null
+          receives_projects?: boolean
           state: string
           updated_at?: string
         }
         Update: {
           created_at?: string
+          cnpj?: string | null
           email?: string | null
           id?: string
           manager?: string | null
           name?: string
           notes?: string | null
+          address?: string | null
           phone?: string | null
+          receives_projects?: boolean
           state?: string
           updated_at?: string
         }
@@ -258,6 +267,47 @@ export type Database = {
             columns: ["program_id"]
             isOneToOne: false
             referencedRelation: "programs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      project_documents: {
+        Row: {
+          id: string
+          project_id: string
+          name: string
+          path: string
+          size: number | null
+          content_type: string | null
+          uploaded_by: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          project_id: string
+          name: string
+          path: string
+          size?: number | null
+          content_type?: string | null
+          uploaded_by?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          project_id?: string
+          name?: string
+          path?: string
+          size?: number | null
+          content_type?: string | null
+          uploaded_by?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_documents_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
             referencedColumns: ["id"]
           },
         ]

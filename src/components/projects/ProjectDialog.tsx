@@ -150,6 +150,7 @@ export function ProjectDialog({
     const { data } = await supabase
       .from("municipalities")
       .select("id, name")
+      .eq("receives_projects", true)
       .order("name");
     setMunicipalities(data || []);
   };
@@ -510,11 +511,12 @@ export function ProjectDialog({
                     type="number"
                     min="0"
                     max="100"
+                    step="0.01"
                     value={formData.execution_percentage}
                     onChange={(e) =>
                       setFormData({
                         ...formData,
-                        execution_percentage: parseInt(e.target.value),
+                        execution_percentage: isNaN(parseFloat(e.target.value)) ? 0 : parseFloat(e.target.value),
                       })
                     }
                   />

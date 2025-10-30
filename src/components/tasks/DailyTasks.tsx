@@ -109,8 +109,17 @@ export const DailyTasks = () => {
         object: p.object,
       }));
 
-      setTodayTasks(items.filter((i) => isSameDay(i.due_date)));
-      setNextTasks(items.filter((i) => isWithinNextDays(i.due_date, 7)));
+      const sortByDue = (arr: TaskItem[]) =>
+        arr
+          .slice()
+          .sort((a, b) => {
+            const aDue = a.due_date ? new Date(a.due_date).getTime() : Infinity;
+            const bDue = b.due_date ? new Date(b.due_date).getTime() : Infinity;
+            return aDue - bDue;
+          });
+
+      setTodayTasks(sortByDue(items.filter((i) => isSameDay(i.due_date))));
+      setNextTasks(sortByDue(items.filter((i) => isWithinNextDays(i.due_date, 7))));
     } catch (err: any) {
       setError(err.message);
     } finally {

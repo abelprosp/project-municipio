@@ -2,7 +2,7 @@ import React from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { FileText, History, Pencil } from "lucide-react";
+import { FileText, History, Pencil, Building2 } from "lucide-react";
 
 export interface ProjectRow {
   id: string;
@@ -28,6 +28,7 @@ interface ProjectsTableProps {
   onEdit?: (project: ProjectRow) => void;
   onOpenHistory?: (project: ProjectRow) => void;
   onGeneratePdf?: (projectId: string) => void;
+  onOpenMunicipality?: (project: ProjectRow) => void;
 }
 
 const formatCurrency = (value: number) => {
@@ -71,7 +72,7 @@ const getStatusBadge = (status: string) => {
   return <Badge variant={variants[status] || "default"}>{labels[status] || status}</Badge>;
 };
 
-export const ProjectsTable: React.FC<ProjectsTableProps> = ({ projects, onEdit, onOpenHistory, onGeneratePdf }) => {
+export const ProjectsTable: React.FC<ProjectsTableProps> = ({ projects, onEdit, onOpenHistory, onGeneratePdf, onOpenMunicipality }) => {
   return (
     <div className="rounded-md border">
       <Table>
@@ -110,7 +111,7 @@ export const ProjectsTable: React.FC<ProjectsTableProps> = ({ projects, onEdit, 
                       style={{ width: `${Math.min(100, Math.max(0, project.execution_percentage))}%` }}
                     />
                   </div>
-                  <span className="ml-2 text-sm text-muted-foreground">{project.execution_percentage}%</span>
+                  <span className="ml-2 text-sm text-muted-foreground">{Number(project.execution_percentage ?? 0).toFixed(2)}%</span>
                 </div>
               </TableCell>
               <TableCell>{project.ministry || "—"}</TableCell>
@@ -120,6 +121,11 @@ export const ProjectsTable: React.FC<ProjectsTableProps> = ({ projects, onEdit, 
                   {onOpenHistory && (
                     <Button size="sm" variant="outline" onClick={() => onOpenHistory(project)}>
                       <History className="mr-1 h-3 w-3" /> Histórico
+                    </Button>
+                  )}
+                  {onOpenMunicipality && (
+                    <Button size="sm" variant="secondary" onClick={() => onOpenMunicipality(project)}>
+                      <Building2 className="mr-1 h-3 w-3" /> Município
                     </Button>
                   )}
                   {onGeneratePdf && (

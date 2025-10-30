@@ -3,11 +3,12 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Plus, LayoutList, KanbanSquare, FileText, History, Table as TableIcon, Activity } from "lucide-react";
+import { Plus, LayoutList, KanbanSquare, FileText, History, Table as TableIcon, Activity, Building2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { ProjectDialog } from "@/components/projects/ProjectDialog";
 import { KanbanBoard } from "@/components/projects/KanbanBoard";
 import { ProjectsTable } from "@/components/projects/ProjectsTable";
+import MunicipalityInfoDialog from "@/components/municipalities/MunicipalityInfoDialog";
 import ProjectInfoDialog from "@/components/projects/ProjectInfoDialog";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -15,6 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { generateProjectsListPdf, generateProjectPdfById } from "@/lib/pdf";
+import { exportProjectsToCsv, exportMovementsToCsv } from "@/lib/export";
 import { usePermissions } from "@/hooks/use-permissions";
 
 interface Project {
@@ -49,13 +51,19 @@ const Projects = () => {
     program_id: "",
     ministry: "",
     status: "",
+    from_date: "",
+    to_date: "",
   });
   const [historyDialogOpen, setHistoryDialogOpen] = useState(false);
   const [activeProject, setActiveProject] = useState<any | null>(null);
   const [movements, setMovements] = useState<any[]>([]);
+  const [historyFrom, setHistoryFrom] = useState<string>("");
+  const [historyTo, setHistoryTo] = useState<string>("");
   const [activityForm, setActivityForm] = useState({ description: "", responsible: "", date: new Date().toISOString().slice(0, 10) });
   const [infoDialogOpen, setInfoDialogOpen] = useState(false);
   const [detailProject, setDetailProject] = useState<any | null>(null);
+  const [munInfoOpen, setMunInfoOpen] = useState(false);
+  const [detailMunicipality, setDetailMunicipality] = useState<any | null>(null);
   const [latestResponsibleMap, setLatestResponsibleMap] = useState<Record<string, string>>({});
   const { toast } = useToast();
   const { permissions } = usePermissions();
@@ -132,6 +140,12 @@ const Projects = () => {
       if (filters.status) {
         query = query.eq("status", filters.status);
       }
+      if (filters.from_date) {
+        query = query.gte("created_at", `${filters.from_date}T00:00:00.000Z`);
+      }
+      if (filters.to_date) {
+        query = query.lte("created_at", `${filters.to_date}T23:59:59.999Z`);
+      }
 
       const { data, error } = await query;
 
@@ -152,15 +166,39 @@ const Projects = () => {
     setActiveProject(project);
     setHistoryDialogOpen(true);
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from("movements")
         .select("*")
         .eq("project_id", project.id)
         .order("date", { ascending: false });
+      if (historyFrom) {
+        const fromIso = `${historyFrom}T00:00:00.000Z`;
+        query = query.gte("date", fromIso);
+      }
+      if (historyTo) {
+        const toIso = `${historyTo}T23:59:59.999Z`;
+        query = query.lte("date", toIso);
+      }
+      const { data, error } = await query;
       if (error) throw error;
       setMovements(data || []);
     } catch (err: any) {
       toast({ title: "Erro ao carregar histórico", description: err.message, variant: "destructive" });
+    }
+  };
+
+  const openMunicipalityInfo = async (project: any) => {
+    try {
+      const { data, error } = await supabase
+        .from("municipalities")
+        .select("*")
+        .eq("id", project.municipality_id)
+        .single();
+      if (error) throw error;
+      setDetailMunicipality(data);
+      setMunInfoOpen(true);
+    } catch (err: any) {
+      toast({ title: "Erro ao abrir município", description: err.message, variant: "destructive" });
     }
   };
 
@@ -350,12 +388,33 @@ const Projects = () => {
               </SelectContent>
             </Select>
           </div>
+          <div className="grid gap-2">
+            <Label htmlFor="filter_from">De (criado em)</Label>
+            <Input
+              id="filter_from"
+              type="date"
+              value={filters.from_date}
+              onChange={(e) => setFilters((f) => ({ ...f, from_date: e.target.value }))}
+            />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="filter_to">Até (criado em)</Label>
+            <Input
+              id="filter_to"
+              type="date"
+              value={filters.to_date}
+              onChange={(e) => setFilters((f) => ({ ...f, to_date: e.target.value }))}
+            />
+          </div>
           <div className="md:col-span-4 flex items-center justify-end">
-            <Button variant="outline" onClick={() => setFilters({ municipality_id: "", program_id: "", ministry: "", status: "" })}>
+            <Button variant="outline" onClick={() => setFilters({ municipality_id: "", program_id: "", ministry: "", status: "", from_date: "", to_date: "" })}>
               Limpar filtros
             </Button>
             <Button className="ml-2" variant="default" onClick={() => generateProjectsListPdf(projects)}>
               <FileText className="mr-2 h-4 w-4" /> Exportar lista (PDF)
+            </Button>
+            <Button className="ml-2" variant="outline" onClick={() => exportProjectsToCsv(projects)}>
+              Exportar lista (Excel)
             </Button>
           </div>
         </div>
@@ -369,6 +428,7 @@ const Projects = () => {
           onEdit={(project) => { setSelectedProject(project); setDialogOpen(true); }}
           onOpenHistory={(project) => openHistory(project)}
           onGeneratePdf={(projectId) => generateProjectPdfById(projectId)}
+          onOpenMunicipality={(project) => openMunicipalityInfo(project)}
         />
       ) : projects.length === 0 ? (
         <Card>
@@ -420,7 +480,7 @@ const Projects = () => {
                   </div>
                   <div>
                     <p className="text-muted-foreground">Execução</p>
-                    <p className="font-semibold">{project.execution_percentage}%</p>
+                    <p className="font-semibold">{Number(project.execution_percentage ?? 0).toFixed(2)}%</p>
                   </div>
                 </div>
                 {project.programs?.name && (
@@ -436,6 +496,9 @@ const Projects = () => {
                 <div className="mt-4 flex items-center gap-2">
                   <Button size="sm" variant="outline" onClick={() => openHistory(project)}>
                     <History className="mr-1 h-3 w-3" /> Histórico
+                  </Button>
+                  <Button size="sm" variant="secondary" onClick={(e) => { e.stopPropagation(); openMunicipalityInfo(project); }}>
+                    <Building2 className="mr-1 h-3 w-3" /> Município
                   </Button>
                   <Button size="sm" variant="ghost" onClick={() => generateProjectPdfById(project.id)}>
                     <FileText className="mr-1 h-3 w-3" /> Relatório (PDF)
@@ -484,6 +547,26 @@ const Projects = () => {
             <DialogTitle>Histórico do projeto</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+              <div className="grid gap-1">
+                <Label>De</Label>
+                <Input type="date" value={historyFrom} onChange={(e) => setHistoryFrom(e.target.value)} />
+              </div>
+              <div className="grid gap-1">
+                <Label>Até</Label>
+                <Input type="date" value={historyTo} onChange={(e) => setHistoryTo(e.target.value)} />
+              </div>
+              <div className="md:col-span-2 flex items-end gap-2">
+                <Button variant="outline" onClick={() => { setHistoryFrom(""); setHistoryTo(""); activeProject && openHistory(activeProject); }}>Limpar</Button>
+                <Button onClick={() => activeProject && openHistory(activeProject)}>Aplicar</Button>
+                <Button variant="ghost" onClick={() => {
+                  if (!activeProject) return;
+                  const fromIso = historyFrom ? `${historyFrom}T00:00:00.000Z` : undefined;
+                  const toIso = historyTo ? `${historyTo}T23:59:59.999Z` : undefined;
+                  generateProjectPdfById(activeProject.id, { from: fromIso, to: toIso });
+                }}>Exportar atividades (PDF)</Button>
+              </div>
+            </div>
             {(!movements || movements.length === 0) && (
               <div className="text-sm text-muted-foreground">Nenhuma atividade registrada</div>
             )}
@@ -508,10 +591,22 @@ const Projects = () => {
             </div>
           </div>
           <DialogFooter>
-            <Button onClick={saveActivity}>Salvar atividade</Button>
+                <Button onClick={saveActivity}>Salvar atividade</Button>
+                <Button variant="outline" onClick={() => exportMovementsToCsv(movements)}>Exportar atividades (Excel)</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Dialog: Informações do município */}
+      <MunicipalityInfoDialog
+        open={munInfoOpen}
+        onOpenChange={setMunInfoOpen}
+        municipality={detailMunicipality ?? undefined}
+        onEdit={() => {
+          // Se desejar, poderíamos abrir a tela de municípios para editar
+          setMunInfoOpen(false);
+        }}
+      />
     </div>
   );
 };

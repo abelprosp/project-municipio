@@ -8,10 +8,13 @@ interface Municipality {
   id: string;
   name: string;
   state: string;
+  cnpj: string | null;
+  address: string | null;
   manager: string | null;
   email: string | null;
   phone: string | null;
   notes?: string | null;
+  receives_projects?: boolean;
 }
 
 interface MunicipalityInfoDialogProps {
@@ -49,6 +52,16 @@ export default function MunicipalityInfoDialog({ open, onOpenChange, municipalit
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
+                <Label className="text-xs text-muted-foreground">CNPJ</Label>
+                <div className="font-medium">{municipality?.cnpj || "—"}</div>
+              </div>
+              <div>
+                <Label className="text-xs text-muted-foreground">Endereço</Label>
+                <div className="font-medium">{municipality?.address || "—"}</div>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
                 <Label className="text-xs text-muted-foreground">Gestor</Label>
                 <div className="font-medium">{municipality?.manager || "—"}</div>
               </div>
@@ -60,6 +73,10 @@ export default function MunicipalityInfoDialog({ open, onOpenChange, municipalit
             <div>
               <Label className="text-xs text-muted-foreground">E-mail</Label>
               <div className="font-medium">{municipality?.email || "—"}</div>
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground">Recebe Projetos</Label>
+              <div className="font-medium">{(municipality?.receives_projects ?? true) ? "Sim" : "Não"}</div>
             </div>
             {municipality?.notes && (
               <div>

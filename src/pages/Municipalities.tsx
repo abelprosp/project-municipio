@@ -12,6 +12,8 @@ interface Municipality {
   id: string;
   name: string;
   state: string;
+  cnpj: string | null;
+  address: string | null;
   manager: string | null;
   email: string | null;
   phone: string | null;
