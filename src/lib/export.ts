@@ -58,4 +58,71 @@ export function exportMovementsToCsv(movements: any[]) {
   downloadCsv("atividades-projeto.csv", rows);
 }
 
+// Função para exportar Dashboard para Excel
+export async function exportDashboardToExcel(stats: {
+  totalMunicipalities: number;
+  totalProjects: number;
+  totalAmount: number;
+  avgExecution: number;
+  projectsByStatus: { status: string; count: number }[];
+}) {
+  const XLSX = await import("xlsx");
+  const { saveAs } = await import("file-saver");
+
+  const workbook = XLSX.utils.book_new();
+
+  // Função auxiliar para obter labels de status
+  const getStatusLabel = (status: string) => {
+    const labels: Record<string, string> = {
+      em_criacao: "Em Criação",
+      em_elaboracao: "Em Elaboração",
+      em_analise: "Em Análise",
+      em_complementacao: "Em Complementação",
+      solicitado_documentacao: "Solicitado Documentação",
+      aguardando_documentacao: "Aguardando Documentação",
+      clausula_suspensiva: "Cláusula Suspensiva",
+      aprovado: "Aprovado",
+      em_execucao: "Em Execução",
+      prestacao_contas: "Prestação de Contas",
+      concluido: "Concluído",
+      cancelado: "Cancelado",
+    };
+    return labels[status] || status;
+  };
+
+  const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat("pt-BR", {
+      style: "currency",
+      currency: "BRL",
+    }).format(value);
+  };
+
+  // Aba 1: KPIs
+  const kpisData = [
+    { Indicador: "Municípios", Valor: stats.totalMunicipalities },
+    { Indicador: "Projetos", Valor: stats.totalProjects },
+    { Indicador: "Valor Total", Valor: formatCurrency(stats.totalAmount) },
+    { Indicador: "Execução Média", Valor: `${Math.round(stats.avgExecution)}%` },
+  ];
+  const kpisSheet = XLSX.utils.json_to_sheet(kpisData);
+  XLSX.utils.book_append_sheet(workbook, kpisSheet, "KPIs");
+
+  // Aba 2: Distribuição por Status
+  const totalStatus = (stats.projectsByStatus || []).reduce((s, i) => s + i.count, 0) || 1;
+  const statusData = (stats.projectsByStatus || [])
+    .sort((a, b) => b.count - a.count)
+    .map((item) => ({
+      Status: getStatusLabel(item.status),
+      Quantidade: item.count,
+      Percentual: `${Math.round((item.count / totalStatus) * 1000) / 10}%`,
+    }));
+  const statusSheet = XLSX.utils.json_to_sheet(statusData);
+  XLSX.utils.book_append_sheet(workbook, statusSheet, "Distribuição Status");
+
+  // Gerar arquivo Excel
+  const excelBuffer = XLSX.write(workbook, { bookType: "xlsx", type: "array" });
+  const blob = new Blob([excelBuffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+  saveAs(blob, `dashboard-${new Date().toISOString().split("T")[0]}.xlsx`);
+}
+
 

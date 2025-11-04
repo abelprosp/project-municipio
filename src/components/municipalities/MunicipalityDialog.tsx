@@ -11,6 +11,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { usePermissions } from "@/hooks/use-permissions";
@@ -171,8 +172,8 @@ export function MunicipalityDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[600px]">
-        <DialogHeader>
+      <DialogContent className="sm:max-w-[600px] h-[80vh] flex flex-col p-0 overflow-hidden">
+        <DialogHeader className="px-6 pt-6 pb-4 flex-shrink-0">
           <DialogTitle>
             {municipality ? "Editar Município" : "Novo Município"}
           </DialogTitle>
@@ -180,8 +181,9 @@ export function MunicipalityDialog({
             Preencha os dados do município abaixo.
           </DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSubmit}>
-          <div className="grid gap-4 py-4">
+        <ScrollArea className="flex-1 min-h-0 px-6 h-full">
+          <form onSubmit={handleSubmit} id="municipality-form">
+            <div className="grid gap-4 py-4">
             <div className="grid gap-2">
               <Label htmlFor="name">Nome *</Label>
               <Input
@@ -279,18 +281,21 @@ export function MunicipalityDialog({
               />
               <Label htmlFor="receives_projects">Recebe Projetos</Label>
             </div>
-          </div>
-          <DialogFooter className="flex items-center justify-between gap-2">
-            {municipality?.id && permissions.canManageMunicipalities && (
-              <div className="flex items-center gap-2">
-                <Button type="button" variant="secondary" onClick={handleArchive} disabled={loading}>
-                  Arquivar
-                </Button>
-                <Button type="button" variant="destructive" onClick={handleDelete} disabled={loading}>
-                  Excluir
-                </Button>
-              </div>
-            )}
+            </div>
+          </form>
+        </ScrollArea>
+        <DialogFooter className="flex items-center justify-between gap-2 px-6 py-4 border-t flex-shrink-0">
+          {municipality?.id && permissions.canManageMunicipalities && (
+            <div className="flex items-center gap-2">
+              <Button type="button" variant="secondary" onClick={handleArchive} disabled={loading}>
+                Arquivar
+              </Button>
+              <Button type="button" variant="destructive" onClick={handleDelete} disabled={loading}>
+                Excluir
+              </Button>
+            </div>
+          )}
+          <div className="flex items-center gap-2 ml-auto">
             <Button
               type="button"
               variant="outline"
@@ -299,12 +304,12 @@ export function MunicipalityDialog({
               Cancelar
             </Button>
             {permissions.canManageMunicipalities && (
-              <Button type="submit" disabled={loading}>
+              <Button type="submit" form="municipality-form" disabled={loading}>
                 {loading ? "Salvando..." : "Salvar"}
               </Button>
             )}
-          </DialogFooter>
-        </form>
+          </div>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

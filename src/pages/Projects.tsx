@@ -277,34 +277,39 @@ const Projects = () => {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-3xl font-bold tracking-tight">Projetos</h2>
-          <p className="text-muted-foreground">Gerencie todos os projetos e convênios</p>
+    <div className="space-y-4 md:space-y-6">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div className="min-w-0">
+          <h2 className="text-2xl md:text-3xl font-bold tracking-tight">Projetos</h2>
+          <p className="text-sm md:text-base text-muted-foreground">Gerencie todos os projetos e convênios</p>
         </div>
-        <div className="flex items-center gap-2">
-          <Button variant={viewMode === "lista" ? "default" : "outline"} onClick={() => setViewMode("lista")}>
-            <LayoutList className="mr-2 h-4 w-4" /> Lista
+        <div className="flex items-center gap-1 md:gap-2 flex-wrap">
+          <Button size="sm" variant={viewMode === "lista" ? "default" : "outline"} onClick={() => setViewMode("lista")}>
+            <LayoutList className="h-3 w-3 md:h-4 md:w-4 md:mr-2" /> 
+            <span className="hidden sm:inline">Lista</span>
           </Button>
-          <Button variant={viewMode === "kanban" ? "default" : "outline"} onClick={() => setViewMode("kanban")}>
-            <KanbanSquare className="mr-2 h-4 w-4" /> Kanban
+          <Button size="sm" variant={viewMode === "kanban" ? "default" : "outline"} onClick={() => setViewMode("kanban")}>
+            <KanbanSquare className="h-3 w-3 md:h-4 md:w-4 md:mr-2" /> 
+            <span className="hidden sm:inline">Kanban</span>
           </Button>
-          <Button variant={viewMode === "tabela" ? "default" : "outline"} onClick={() => setViewMode("tabela")}>
-            <TableIcon className="mr-2 h-4 w-4" /> Tabela
+          <Button size="sm" variant={viewMode === "tabela" ? "default" : "outline"} onClick={() => setViewMode("tabela")}>
+            <TableIcon className="h-3 w-3 md:h-4 md:w-4 md:mr-2" /> 
+            <span className="hidden sm:inline">Tabela</span>
           </Button>
           <Button
+            size="sm"
             variant={filters.status === "em_execucao" ? "default" : "outline"}
             onClick={() =>
               setFilters((f) => ({ ...f, status: f.status === "em_execucao" ? "" : "em_execucao" }))
             }
           >
-            <Activity className="mr-2 h-4 w-4" /> Execução
+            <Activity className="h-3 w-3 md:h-4 md:w-4 md:mr-2" /> 
+            <span className="hidden sm:inline">Execução</span>
           </Button>
           {permissions.canManageProjects && (
-            <Button onClick={() => { setSelectedProject(undefined); setDialogOpen(true); }}>
-              <Plus className="mr-2 h-4 w-4" />
-              Novo Projeto
+            <Button size="sm" onClick={() => { setSelectedProject(undefined); setDialogOpen(true); }}>
+              <Plus className="h-3 w-3 md:h-4 md:w-4 md:mr-2" />
+              <span className="hidden sm:inline">Novo </span>Projeto
             </Button>
           )}
         </div>
@@ -312,7 +317,7 @@ const Projects = () => {
 
       {/* Filtros */}
       {(viewMode === "lista" || viewMode === "tabela") && (
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
           <div className="grid gap-2">
             <Label htmlFor="filter_municipality">Município</Label>
             <Select

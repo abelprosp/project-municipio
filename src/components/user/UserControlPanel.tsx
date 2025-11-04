@@ -617,10 +617,10 @@ export function UserControlPanel({ className }: UserControlPanelProps) {
 
             <div className="space-y-2">
               {notifications.map((notification) => (
-                <Card key={notification.id} className={!notification.is_read ? "border-blue-200 bg-blue-50" : ""}>
+                <Card key={notification.id} className={!notification.is_read ? "border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-900/20" : ""}>
                   <CardContent className="p-3">
                     <div className="flex items-start gap-3">
-                      <Bell className={`h-4 w-4 mt-1 ${!notification.is_read ? "text-blue-600" : "text-gray-400"}`} />
+                      <Bell className={`h-4 w-4 mt-1 ${!notification.is_read ? "text-blue-600 dark:text-blue-400" : "text-gray-400 dark:text-gray-500"}`} />
                       <div className="flex-1">
                         <div className="flex items-center gap-2">
                           <h4 className="text-sm font-medium">{notification.title}</h4>

@@ -1,0 +1,11 @@
+@page { size: A4; margin: 16mm; }
+body { font-family: Helvetica, Arial, sans-serif; color: #0f172a; }
+h1, h2 { margin: 0 0 8px 0; }
+.muted { color: #475569; }
+.section { page-break-before: always; }
+table { width: 100%; border-collapse: collapse; font-size: 12px; }
+thead { display: table-header-group; }
+th, td { padding: 6px 8px; border-bottom: 1px solid #e2e8f0; }
+tr { page-break-inside: avoid; }
+.placeholder { color: #64748b; font-style: italic; margin: 8px 0; }
+

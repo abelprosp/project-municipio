@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { RefreshCw } from "lucide-react";
 
 type ProjectStatus =
   | "em_criacao"
@@ -149,10 +150,19 @@ export const DailyTasks = () => {
     <div className="grid gap-4 md:grid-cols-2">
       <Card>
         <CardHeader className="flex items-center justify-between">
-          <CardTitle>Atividades do Dia</CardTitle>
-          <Button variant="outline" size="sm" onClick={load} disabled={loading}>
-            Atualizar
-          </Button>
+          <CardTitle className="flex items-center gap-2">
+            Atividades do Dia
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={load}
+              disabled={loading}
+              className="h-6 w-6"
+              title="Atualizar"
+            >
+              <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+            </Button>
+          </CardTitle>
         </CardHeader>
         <CardContent>
           {loading ? (
@@ -183,8 +193,10 @@ export const DailyTasks = () => {
       </Card>
 
       <Card>
-        <CardHeader>
-          <CardTitle>Próximos 7 dias</CardTitle>
+        <CardHeader className="flex items-center justify-between">
+          <CardTitle className="flex items-center gap-2">
+            Próximos 7 dias
+          </CardTitle>
         </CardHeader>
         <CardContent>
           {loading ? (

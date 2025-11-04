@@ -60,6 +60,8 @@ export default function ChatbotWidget() {
     }
   }, [messages, loading]);
 
+  // Tema: botão removido (mantemos tema do app)
+
   // Remove conteúdos de cadeia de pensamento que alguns modelos retornam
   function sanitizeModelOutput(text: string) {
     if (!text) return text;
@@ -124,35 +126,66 @@ export default function ChatbotWidget() {
   return (
     <div className="fixed bottom-4 right-4 z-50">
       {!open ? (
-        <Button className="rounded-full shadow-lg" onClick={() => setOpen(true)}>
-          <MessageSquare className="mr-2 h-4 w-4" /> Assistente
-        </Button>
+        <div className="flex items-center gap-3">
+          <Button className="rounded-full shadow-lg bg-blue-600 hover:bg-blue-500 text-white animate-pulse" onClick={() => setOpen(true)}>
+            <MessageSquare className="mr-2 h-4 w-4" /> 
+            <span className="hidden sm:inline">Assistente</span>
+          </Button>
+        </div>
       ) : (
-        <div className="w-[360px] h-[520px] bg-background border rounded-lg shadow-xl flex flex-col">
-          <div className="h-12 border-b px-3 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Sparkles className="h-4 w-4 text-primary" />
-              <span className="font-medium">Assistente com IA</span>
+        <>
+          {/* Overlay para mobile - permite fechar tocando fora */}
+          <div 
+            className="fixed inset-0 bg-black/50 z-40 md:hidden"
+            onClick={() => setOpen(false)}
+          />
+          <div className="w-[calc(100vw-2rem)] sm:w-[360px] h-[calc(100vh-8rem)] sm:h-[520px] max-h-[600px] bg-background border rounded-lg shadow-xl flex flex-col relative z-50">
+            <div className="h-12 border-b px-3 flex items-center justify-between flex-shrink-0">
+              <div className="flex items-center gap-2 min-w-0">
+                <Sparkles className="h-4 w-4 text-primary flex-shrink-0" />
+                <span className="font-medium text-sm sm:text-base truncate">Assistente com IA</span>
+              </div>
+              <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
+                <select
+                  className="text-xs sm:text-sm bg-background border border-input px-1 sm:px-2 py-1 rounded text-foreground dark:text-foreground dark:bg-background dark:border-input hidden sm:block"
+                  value={mode}
+                  onChange={(e) => setMode(e.target.value as Mode)}
+                  title="Modo de resposta"
+                >
+                  <option value="assist" className="bg-background text-foreground dark:bg-background dark:text-foreground">Assistir / dúvidas</option>
+                  <option value="analyze" className="bg-background text-foreground dark:bg-background dark:text-foreground">Analisar dados</option>
+                </select>
+                <label className="flex items-center gap-1 text-xs hidden sm:flex">
+                  <input type="checkbox" checked={useContext} onChange={(e) => setUseContext(e.target.checked)} />
+                  <span className="whitespace-nowrap">Usar contexto</span>
+                </label>
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className="h-8 w-8 sm:h-10 sm:w-10 flex-shrink-0"
+                  onClick={() => setOpen(false)}
+                  aria-label="Fechar assistente"
+                >
+                  <X className="h-4 w-4 sm:h-5 sm:w-5" />
+                </Button>
+              </div>
             </div>
-            <div className="flex items-center gap-2">
+            {/* Controles móveis - abaixo do header */}
+            <div className="sm:hidden border-b px-3 py-2 flex items-center gap-2 flex-wrap flex-shrink-0">
               <select
-                className="text-sm bg-transparent border px-2 py-1 rounded"
+                className="text-xs bg-background border border-input px-2 py-1 rounded text-foreground dark:text-foreground dark:bg-background dark:border-input flex-1 min-w-0"
                 value={mode}
                 onChange={(e) => setMode(e.target.value as Mode)}
                 title="Modo de resposta"
               >
-                <option value="assist">Assistir / dúvidas</option>
-                <option value="analyze">Analisar dados</option>
+                <option value="assist" className="bg-background text-foreground dark:bg-background dark:text-foreground">Assistir / dúvidas</option>
+                <option value="analyze" className="bg-background text-foreground dark:bg-background dark:text-foreground">Analisar dados</option>
               </select>
-              <label className="flex items-center gap-1 text-xs">
+              <label className="flex items-center gap-1 text-xs whitespace-nowrap">
                 <input type="checkbox" checked={useContext} onChange={(e) => setUseContext(e.target.checked)} />
                 Usar contexto
               </label>
-              <Button variant="ghost" size="icon" onClick={() => setOpen(false)}>
-                <X className="h-4 w-4" />
-              </Button>
             </div>
-          </div>
           <div ref={scrollRef} className="flex-1 overflow-y-auto p-3 space-y-3">
             {messages
               .filter((m) => m.role !== "system")
@@ -181,11 +214,12 @@ export default function ChatbotWidget() {
               </div>
             )}
           </div>
-          <div className="h-14 border-t p-2 flex items-center gap-2">
+          <div className="h-14 border-t p-2 flex items-center gap-2 flex-shrink-0">
             <Input
               placeholder="Digite sua pergunta…"
               value={input}
               onChange={(e) => setInput(e.target.value)}
+              className="text-sm"
               onKeyDown={(e) => {
                 if (e.key === "Enter" && !e.shiftKey) {
                   e.preventDefault();
@@ -193,11 +227,17 @@ export default function ChatbotWidget() {
                 }
               }}
             />
-            <Button onClick={sendMessage} disabled={loading || !input.trim()}>
+            <Button 
+              onClick={sendMessage} 
+              disabled={loading || !input.trim()}
+              size="icon"
+              className="flex-shrink-0"
+            >
               <Send className="h-4 w-4" />
             </Button>
           </div>
-        </div>
+          </div>
+        </>
       )}
     </div>
   );

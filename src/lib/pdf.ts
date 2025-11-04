@@ -1,5 +1,23 @@
 import jsPDF from "jspdf";
 import { supabase } from "@/integrations/supabase/client";
+import { buildDashboardReportData, buildProjectsReportData } from "@/lib/reporting/reporting";
+
+type MunicipalityWithProjects = {
+  id: string;
+  name: string;
+  totalProjects: number;
+  totalAmount: number;
+  avgExecution: number;
+  projects: Array<{
+    id: string;
+    object: string;
+    status: string;
+    year: number;
+    transfer_amount: number;
+    counterpart_amount: number;
+    execution_percentage: number;
+  }>;
+};
 
 type DashboardStats = {
   totalMunicipalities: number;
@@ -7,6 +25,7 @@ type DashboardStats = {
   totalAmount: number;
   avgExecution: number;
   projectsByStatus: { status: string; count: number }[];
+  municipalities: MunicipalityWithProjects[];
 };
 
 type ProjectStatus =
@@ -139,53 +158,177 @@ export async function generateDashboardPdf(stats: DashboardStats) {
   y = addStatCard(doc, "Valor Total", formatCurrencyBRL(stats.totalAmount), startX, y, cardWidth);
   y = addStatCard(doc, "Execução Média", `${Math.round(stats.avgExecution)}%`, startX + cardSpacing, y - 30, cardWidth);
 
-  y += 20;
+  y += 6; // reduz espaço para caber em 1 página
 
-  // Seção de projetos por status
+  // Progresso geral como barra horizontal simulada (meta 60%)
+  y = addSection(doc, "Progresso Geral", y);
+  const pct = Math.round(stats.avgExecution);
+  const meta = 60;
+  const barX = 20; const barY = y + 6; const barW = 160; const barH = 7;
+  // fundo
+  doc.setFillColor(229, 231, 235);
+  doc.rect(barX, barY, barW, barH, 'F');
+  // preenchimento
+  const fillW = Math.max(0, Math.min(barW, (pct / 100) * barW));
+  doc.setFillColor(59, 130, 246);
+  doc.rect(barX, barY, fillW, barH, 'F');
+  // marcador de meta
+  const metaX = barX + (meta / 100) * barW;
+  doc.setDrawColor(15, 23, 42);
+  doc.setLineWidth(0.5);
+  doc.line(metaX, barY - 2, metaX, barY + barH + 2);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(0,0,0);
+  doc.text(`${pct}% (meta ${meta}%)`, barX, barY + 16);
+  y = barY + 22;
+
+  // Seção de projetos por status (tabela + gráfico de barras)
   y = addSection(doc, "Projetos por Status", y);
-  
   doc.setFontSize(10);
   doc.setFont("helvetica", "normal");
-  
-  // Cabeçalho da tabela
+
+  // Tabela resumida
   doc.setFillColor(241, 245, 249); // gray-100
-  doc.rect(15, y, 180, 15, 'F');
+  doc.rect(15, y, 180, 12, 'F');
   doc.setTextColor(0, 0, 0);
   doc.setFont("helvetica", "bold");
-  doc.text("Status", 20, y + 10);
-  doc.text("Quantidade", 120, y + 10);
-  y += 20;
+  doc.text("Status", 20, y + 8);
+  doc.text("Qtd.", 145, y + 8);
+  doc.text("%", 185, y + 8);
+  y += 14;
 
-  // Dados da tabela
-  doc.setFont("helvetica", "normal");
+  const totalStatus = (stats.projectsByStatus || []).reduce((s, i) => s + i.count, 0) || 1;
+  const maxCount = Math.max(1, ...(stats.projectsByStatus || []).map((i) => i.count));
+  const BAR_MAX_WIDTH = 50; // largura menor para caber tudo
+  const BAR_START_X = 125; // início da barra
+
+  const COLOR: Record<string, [number, number, number]> = {
+    em_criacao: [124, 122, 246],
+    prestacao_contas: [245, 224, 66],
+    em_execucao: [31, 64, 223],
+    em_elaboracao: [34, 197, 94],
+    em_analise: [249, 115, 22],
+    em_complementacao: [249, 115, 22],
+    aprovado: [59, 130, 246],
+    cancelado: [148, 163, 184],
+    concluido: [16, 185, 129],
+    aguardando_documentacao: [14, 165, 233],
+    solicitado_documentacao: [56, 189, 248],
+    clausula_suspensiva: [99, 102, 241],
+  };
+
   for (const item of stats.projectsByStatus || []) {
     if (y > 250) {
       doc.addPage();
       y = addStyledHeader(doc, "Relatório Geral", "Dashboard de Convênios e Projetos");
-      y += 20;
+      y = addSection(doc, "Projetos por Status (cont.)", y);
     }
-    
-    // Linha da tabela
-    doc.setFillColor(255, 255, 255);
-    doc.rect(15, y - 5, 180, 12, 'F');
-    doc.setDrawColor(226, 232, 240);
-    doc.setLineWidth(0.5);
-    doc.line(15, y + 7, 195, y + 7);
-    
-    doc.text(STATUS_LABEL[item.status] || item.status, 20, y + 2);
-    doc.text(item.count.toString(), 120, y + 2);
-    y += 12;
+
+    const pct = Math.round((item.count / totalStatus) * 1000) / 10; // 1 casa
+    // Tabela
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(0, 0, 0);
+    doc.text(STATUS_LABEL[item.status] || item.status, 20, y);
+    doc.text(String(item.count), 145, y);
+
+    // Barra (antes do % para não encobrir)
+    const width = Math.max(2, (item.count / maxCount) * BAR_MAX_WIDTH);
+    const color = COLOR[item.status] || [59, 130, 246];
+    doc.setFillColor(color[0], color[1], color[2]);
+    doc.rect(BAR_START_X, y - 3, width, 5, 'F');
+
+    // Percentual em coluna fixa
+    doc.setTextColor(0, 0, 0);
+    doc.text(`${pct}%`, 185, y);
+
+    y += 9;
+  }
+
+  // Seção Quadro de Municípios
+  if (y > 240) {
+    doc.addPage();
+    y = addStyledHeader(doc, "Relatório Geral", "Dashboard de Convênios e Projetos");
+  }
+  y = addSection(doc, "Quadro de Municípios", y);
+  doc.setFontSize(10);
+  doc.setFont("helvetica", "normal");
+
+  // Ordenar municípios por nome
+  const sortedMunicipalities = (stats.municipalities || []).sort((a, b) => a.name.localeCompare(b.name));
+
+  for (const mun of sortedMunicipalities) {
+    if (y > 250) {
+      doc.addPage();
+      y = addStyledHeader(doc, "Relatório Geral", "Dashboard de Convênios e Projetos");
+      y = addSection(doc, "Quadro de Municípios (cont.)", y);
+    }
+
+    // Cabeçalho do município
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(11);
+    doc.setTextColor(0, 0, 0);
+    doc.text(mun.name, 20, y);
+    y += 6;
+
+    // Estatísticas do município
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.text(`Projetos: ${mun.totalProjects}`, 25, y);
+    doc.text(`Valor Total: ${formatCurrencyBRL(mun.totalAmount)}`, 90, y);
+    doc.text(`Execução: ${Math.round(mun.avgExecution)}%`, 160, y);
+    y += 7;
+
+    // Lista de projetos (limitado a 5 primeiros)
+    const projectsToShow = mun.projects.slice(0, 5);
+    doc.setFontSize(8);
+    for (const proj of projectsToShow) {
+      if (y > 250) {
+        doc.addPage();
+        y = addStyledHeader(doc, "Relatório Geral", "Dashboard de Convênios e Projetos");
+        y = addSection(doc, "Quadro de Municípios (cont.)", y);
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(11);
+        doc.text(mun.name + " (cont.)", 20, y);
+        y += 6;
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(8);
+      }
+      const projText = (proj.object || "—").length > 40 ? (proj.object || "—").substring(0, 37) + "..." : (proj.object || "—");
+      doc.text(`  • ${projText}`, 25, y);
+      doc.text(`(${STATUS_LABEL[proj.status as ProjectStatus] || proj.status})`, 140, y);
+      y += 5;
+    }
+    if (mun.projects.length > 5) {
+      doc.text(`  ... e mais ${mun.projects.length - 5} projeto(s)`, 25, y);
+      y += 5;
+    }
+
+    y += 3; // Espaço entre municípios
   }
 
   // Rodapé
-  const pageHeight = doc.internal.pageSize.getHeight();
+  const pageHeightDash = doc.internal.pageSize.getHeight();
   doc.setFillColor(59, 130, 246);
-  doc.rect(0, pageHeight - 20, doc.internal.pageSize.getWidth(), 20, 'F');
+  doc.rect(0, pageHeightDash - 20, doc.internal.pageSize.getWidth(), 20, 'F');
   doc.setTextColor(255, 255, 255);
   doc.setFontSize(10);
-  doc.text("Sistema de Gestão de Convênios e Projetos", 20, pageHeight - 8);
+  doc.text("Sistema de Gestão de Convênios e Projetos", 20, pageHeightDash - 8);
 
   doc.save(`relatorio-geral-dashboard.pdf`);
+}
+
+// Wrappers de alto nível solicitados
+export async function createDashboardPdf(filters?: { from?: string; to?: string }) {
+  const data = await buildDashboardReportData(filters);
+  // Sem captura de canvas; simulamos no PDF
+  await generateDashboardPdf({
+    totalMunicipalities: data.totalMunicipalities,
+    totalProjects: data.totalProjects,
+    totalAmount: data.totalAmount,
+    avgExecution: data.avgExecution,
+    projectsByStatus: data.projectsByStatus,
+    municipalities: data.municipalities,
+  });
 }
 
 export async function generateProjectPdfById(projectId: string, opts?: { from?: string; to?: string }) {
@@ -422,18 +565,30 @@ export async function generateProjectPdfById(projectId: string, opts?: { from?: 
   }
 
   // Rodapé
-  const pageHeight = doc.internal.pageSize.getHeight();
+  const pageHeightProj = doc.internal.pageSize.getHeight();
   doc.setFillColor(59, 130, 246);
-  doc.rect(0, pageHeight - 20, doc.internal.pageSize.getWidth(), 20, 'F');
+  doc.rect(0, pageHeightProj - 20, doc.internal.pageSize.getWidth(), 20, 'F');
   doc.setTextColor(255, 255, 255);
   doc.setFontSize(10);
-  doc.text("Sistema de Gestão de Convênios e Projetos", 20, pageHeight - 8);
+  doc.text("Sistema de Gestão de Convênios e Projetos", 20, pageHeightProj - 8);
 
   const fileNameSafeMun = (project.municipalities?.name || "municipio").replace(/[^a-z0-9_-]+/gi, "_");
   doc.save(`relatorio-projeto_${fileNameSafeMun}_${project.year || ""}.pdf`);
 }
 
 export async function generateProjectsListPdf(projects: any[]) {
+  // Caso vazio: gerar PDF simples OU nem gerar (aqui geramos simples)
+  if (!projects || projects.length === 0) {
+    const docEmpty = new jsPDF();
+    let yEmpty = addStyledHeader(docEmpty, "Lista de Projetos", "Sem registros no período");
+    yEmpty = addSection(docEmpty, "Resumo", yEmpty);
+    docEmpty.setFont("helvetica", "normal");
+    docEmpty.setTextColor(0, 0, 0);
+    docEmpty.text("Não há registros para os filtros selecionados.", 20, yEmpty + 10);
+    docEmpty.save("relatorio-lista-projetos.pdf");
+    return;
+  }
+
   const doc = new jsPDF();
   let y = addStyledHeader(doc, "Lista de Projetos", `${projects.length} projetos encontrados`);
 
@@ -461,32 +616,28 @@ export async function generateProjectsListPdf(projects: any[]) {
 
   // Tabela de projetos
   y = addSection(doc, "Lista Detalhada", y);
-  
-  doc.setFontSize(9);
-  doc.setFont("helvetica", "normal");
-  
-  // Cabeçalho da tabela
-  doc.setFillColor(241, 245, 249); // gray-100
-  doc.rect(10, y, 190, 12, 'F');
-  doc.setTextColor(0, 0, 0);
-  doc.setFont("helvetica", "bold");
-  doc.text("Município", 15, y + 8);
-  doc.text("Ano", 50, y + 8);
-  doc.text("Objeto", 65, y + 8);
-  doc.text("Status", 120, y + 8);
-  doc.text("Valor Total", 150, y + 8);
-  doc.text("Exec.%", 175, y + 8);
-  y += 15;
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const bottomLimit = pageHeight - 25; // margem inferior
 
-  // Dados da tabela
-  doc.setFont("helvetica", "normal");
-  for (const p of projects || []) {
-    if (y > 250) {
-      doc.addPage();
-      y = addStyledHeader(doc, "Lista de Projetos", `${projects.length} projetos encontrados`);
-      y += 20;
-    }
-    
+  const drawTableHeader = () => {
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(0, 0, 0);
+    doc.setFillColor(241, 245, 249);
+    doc.rect(10, y, 190, 12, 'F');
+    doc.text("Município", 15, y + 8);
+    doc.text("Ano", 50, y + 8);
+    doc.text("Objeto", 65, y + 8);
+    doc.text("Status", 120, y + 8);
+    doc.text("Valor Total", 150, y + 8);
+    doc.text("Exec.%", 175, y + 8);
+    y += 15;
+    doc.setFont("helvetica", "normal");
+  };
+
+  drawTableHeader();
+  let linesDrawnOnPage = 0;
+  for (const p of projects) {
     const mun = p.municipalities?.name || "—";
     const ano = p.year ?? "—";
     const obj = String(p.object || "—");
@@ -494,24 +645,35 @@ export async function generateProjectsListPdf(projects: any[]) {
     const total = formatCurrencyBRL(Number(p.transfer_amount || 0) + Number(p.counterpart_amount || 0));
     const exec = `${Number(p.execution_percentage || 0)}%`;
 
-    // Linha da tabela
+    const rowHeight = 10;
+    if (y + rowHeight > bottomLimit) {
+      // evita página vazia: só quebra se há itens restantes
+      doc.addPage();
+      y = addStyledHeader(doc, "Lista de Projetos", `${projects.length} projetos encontrados`);
+      y += 10;
+      drawTableHeader();
+      linesDrawnOnPage = 0;
+    }
+
+    // Linha
+    doc.setTextColor(0, 0, 0);
     doc.setFillColor(255, 255, 255);
-    doc.rect(10, y - 3, 190, 10, 'F');
+    doc.rect(10, y - 3, 190, rowHeight, 'F');
     doc.setDrawColor(226, 232, 240);
     doc.setLineWidth(0.3);
     doc.line(10, y + 7, 200, y + 7);
-    
+
     doc.text(mun.length > 15 ? mun.substring(0, 15) + "..." : mun, 15, y + 2);
     doc.text(String(ano), 50, y + 2);
     doc.text(obj.length > 20 ? obj.substring(0, 20) + "..." : obj, 65, y + 2);
     doc.text(status.length > 12 ? status.substring(0, 12) + "..." : status, 120, y + 2);
     doc.text(total, 150, y + 2);
     doc.text(exec, 175, y + 2);
-    y += 10;
+    y += rowHeight;
+    linesDrawnOnPage++;
   }
 
-  // Rodapé
-  const pageHeight = doc.internal.pageSize.getHeight();
+  // Rodapé (reutiliza pageHeight definido acima)
   doc.setFillColor(59, 130, 246);
   doc.rect(0, pageHeight - 20, doc.internal.pageSize.getWidth(), 20, 'F');
   doc.setTextColor(255, 255, 255);
@@ -519,4 +681,9 @@ export async function generateProjectsListPdf(projects: any[]) {
   doc.text("Sistema de Gestão de Convênios e Projetos", 20, pageHeight - 8);
 
   doc.save("relatorio-lista-projetos.pdf");
+}
+
+export async function createProjectsPdf(filters?: { from?: string; to?: string; status?: string }) {
+  const { projects } = await buildProjectsReportData(filters);
+  await generateProjectsListPdf(projects);
 }

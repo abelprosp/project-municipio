@@ -74,8 +74,8 @@ const getStatusBadge = (status: string) => {
 
 export const ProjectsTable: React.FC<ProjectsTableProps> = ({ projects, onEdit, onOpenHistory, onGeneratePdf, onOpenMunicipality }) => {
   return (
-    <div className="rounded-md border">
-      <Table>
+    <div className="rounded-md border overflow-x-auto">
+      <Table className="min-w-[800px]">
         <TableHeader>
           <TableRow>
             <TableHead>Município</TableHead>
@@ -117,25 +117,29 @@ export const ProjectsTable: React.FC<ProjectsTableProps> = ({ projects, onEdit, 
               <TableCell>{project.ministry || "—"}</TableCell>
               <TableCell>{project.proposal_number || "—"}</TableCell>
               <TableCell className="text-right">
-                <div className="flex justify-end gap-2">
+                <div className="flex justify-end gap-1 md:gap-2 flex-wrap">
                   {onOpenHistory && (
-                    <Button size="sm" variant="outline" onClick={() => onOpenHistory(project)}>
-                      <History className="mr-1 h-3 w-3" /> Histórico
+                    <Button size="sm" variant="outline" onClick={() => onOpenHistory(project)} className="text-xs">
+                      <History className="h-3 w-3 md:mr-1" /> 
+                      <span className="hidden md:inline">Histórico</span>
                     </Button>
                   )}
                   {onOpenMunicipality && (
-                    <Button size="sm" variant="secondary" onClick={() => onOpenMunicipality(project)}>
-                      <Building2 className="mr-1 h-3 w-3" /> Município
+                    <Button size="sm" variant="secondary" onClick={() => onOpenMunicipality(project)} className="text-xs">
+                      <Building2 className="h-3 w-3 md:mr-1" /> 
+                      <span className="hidden md:inline">Município</span>
                     </Button>
                   )}
                   {onGeneratePdf && (
-                    <Button size="sm" variant="ghost" onClick={() => onGeneratePdf(project.id)}>
-                      <FileText className="mr-1 h-3 w-3" /> Relatório
+                    <Button size="sm" variant="ghost" onClick={() => onGeneratePdf(project.id)} className="text-xs">
+                      <FileText className="h-3 w-3 md:mr-1" /> 
+                      <span className="hidden md:inline">Relatório</span>
                     </Button>
                   )}
                   {onEdit && (
-                    <Button size="sm" onClick={() => onEdit(project)}>
-                      <Pencil className="mr-1 h-3 w-3" /> Editar
+                    <Button size="sm" onClick={() => onEdit(project)} className="text-xs">
+                      <Pencil className="h-3 w-3 md:mr-1" /> 
+                      <span className="hidden md:inline">Editar</span>
                     </Button>
                   )}
                 </div>

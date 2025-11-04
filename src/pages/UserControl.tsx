@@ -353,14 +353,14 @@ export function UserControlPage() {
               <div className="space-y-2">
                 <Label>Informações da Conta</Label>
                 <div className="grid gap-2 md:grid-cols-2">
-                  <div className="flex items-center gap-2 p-3 bg-gray-50 rounded">
+                  <div className="flex items-center gap-2 p-3 bg-gray-50 dark:bg-slate-800/60 rounded border border-transparent dark:border-slate-700">
                     <Mail className="h-4 w-4 text-gray-600" />
                     <div>
                       <div className="text-sm font-medium">Email</div>
                       <div className="text-sm text-muted-foreground">{user.email}</div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2 p-3 bg-gray-50 rounded">
+                  <div className="flex items-center gap-2 p-3 bg-gray-50 dark:bg-slate-800/60 rounded border border-transparent dark:border-slate-700">
                     <Calendar className="h-4 w-4 text-gray-600" />
                     <div>
                       <div className="text-sm font-medium">Membro desde</div>
@@ -531,7 +531,7 @@ export function UserControlPage() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid gap-4 md:grid-cols-2">
-                <div className="flex items-center gap-2 p-3 bg-gray-50 rounded">
+                <div className="flex items-center gap-2 p-3 bg-gray-50 dark:bg-slate-800/60 rounded border border-transparent dark:border-slate-700">
                   <Mail className="h-4 w-4 text-gray-600" />
                   <div>
                     <div className="text-sm font-medium">Email Verificado</div>
@@ -550,7 +550,7 @@ export function UserControlPage() {
                     </div>
                   </div>
                 </div>
-                <div className="flex items-center gap-2 p-3 bg-gray-50 rounded">
+                <div className="flex items-center gap-2 p-3 bg-gray-50 dark:bg-slate-800/60 rounded border border-transparent dark:border-slate-700">
                   <Calendar className="h-4 w-4 text-gray-600" />
                   <div>
                     <div className="text-sm font-medium">Último Acesso</div>

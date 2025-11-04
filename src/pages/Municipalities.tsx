@@ -62,16 +62,16 @@ const Municipalities = () => {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-3xl font-bold tracking-tight">Municípios</h2>
-          <p className="text-muted-foreground">Gerencie os municípios cadastrados</p>
+    <div className="space-y-4 md:space-y-6">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div className="min-w-0">
+          <h2 className="text-2xl md:text-3xl font-bold tracking-tight">Municípios</h2>
+          <p className="text-sm md:text-base text-muted-foreground">Gerencie os municípios cadastrados</p>
         </div>
         {permissions.canManageMunicipalities && (
-          <Button onClick={() => { setSelectedMunicipality(undefined); setDialogOpen(true); }}>
-            <Plus className="mr-2 h-4 w-4" />
-            Novo Município
+          <Button size="sm" onClick={() => { setSelectedMunicipality(undefined); setDialogOpen(true); }}>
+            <Plus className="h-3 w-3 md:h-4 md:w-4 md:mr-2" />
+            <span className="hidden sm:inline">Novo </span>Município
           </Button>
         )}
       </div>
@@ -89,7 +89,7 @@ const Municipalities = () => {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-3 md:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
           {municipalities.map((municipality) => (
             <Card
               key={municipality.id}
