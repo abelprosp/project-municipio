@@ -30,6 +30,10 @@ interface Project {
   counterpart_amount: number;
   execution_percentage: number;
   municipality_id: string;
+  start_date: string | null;
+  end_date: string | null;
+  final_deadline: string | null;
+  accountability_date: string | null;
   municipalities: {
     name: string;
   };
@@ -53,6 +57,10 @@ const Projects = () => {
     status: "",
     from_date: "",
     to_date: "",
+    end_date_from: "",
+    end_date_to: "",
+    sortBy: "created_at" as "created_at" | "end_date" | "accountability_date",
+    sortOrder: "desc" as "asc" | "desc",
   });
   const [historyDialogOpen, setHistoryDialogOpen] = useState(false);
   const [activeProject, setActiveProject] = useState<any | null>(null);
@@ -125,8 +133,7 @@ const Projects = () => {
     try {
       let query = supabase
         .from("projects")
-        .select(`*, municipalities(name), programs(name)`) // usa FKs
-        .order("created_at", { ascending: false });
+        .select(`*, municipalities(name), programs(name)`); // usa FKs
 
       if (filters.municipality_id) {
         query = query.eq("municipality_id", filters.municipality_id);
@@ -137,14 +144,43 @@ const Projects = () => {
       if (filters.ministry) {
         query = query.ilike("ministry", `%${filters.ministry}%`);
       }
+      
+      // Filtro de status
       if (filters.status) {
-        query = query.eq("status", filters.status);
+        if (filters.status === "__finalizados__") {
+          // Mostrar apenas finalizados/cancelados
+          query = query.in("status", ["concluido", "cancelado"]);
+        } else if (filters.status !== "__all__") {
+          // Status específico
+          query = query.eq("status", filters.status);
+        }
+        // Se for "__all__", não aplicar filtro de status
+      } else {
+        // Por padrão (sem filtro), excluir finalizados e cancelados
+        query = query.not("status", "eq", "concluido").not("status", "eq", "cancelado");
       }
+      
       if (filters.from_date) {
         query = query.gte("created_at", `${filters.from_date}T00:00:00.000Z`);
       }
       if (filters.to_date) {
         query = query.lte("created_at", `${filters.to_date}T23:59:59.999Z`);
+      }
+      if (filters.end_date_from) {
+        query = query.gte("final_deadline", filters.end_date_from);
+      }
+      if (filters.end_date_to) {
+        query = query.lte("final_deadline", filters.end_date_to);
+      }
+
+      // Ordenação
+      // Só ordena por vigência/prestação de contas quando não está mostrando finalizados
+      if (filters.sortBy === "end_date") {
+        query = query.order("end_date", { ascending: filters.sortOrder === "asc", nullsFirst: false });
+      } else if (filters.sortBy === "accountability_date") {
+        query = query.order("accountability_date", { ascending: filters.sortOrder === "asc", nullsFirst: false });
+      } else {
+        query = query.order("created_at", { ascending: filters.sortOrder === "asc" });
       }
 
       const { data, error } = await query;
@@ -268,6 +304,11 @@ const Projects = () => {
     }).format(value);
   };
 
+  const formatDate = (date: string | null) => {
+    if (!date) return "Sem prazo definido";
+    return new Date(date).toLocaleDateString("pt-BR");
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -378,6 +419,7 @@ const Projects = () => {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="__all__">Todos</SelectItem>
+                <SelectItem value="__finalizados__">Finalizados</SelectItem>
                 <SelectItem value="em_criacao">Em Criação</SelectItem>
                 <SelectItem value="em_elaboracao">Em Elaboração</SelectItem>
                 <SelectItem value="em_analise">Em Análise</SelectItem>
@@ -411,8 +453,61 @@ const Projects = () => {
               onChange={(e) => setFilters((f) => ({ ...f, to_date: e.target.value }))}
             />
           </div>
-          <div className="md:col-span-4 flex items-center justify-end">
-            <Button variant="outline" onClick={() => setFilters({ municipality_id: "", program_id: "", ministry: "", status: "", from_date: "", to_date: "" })}>
+          <div className="grid gap-2">
+            <Label htmlFor="filter_end_date_from">De (prazo final)</Label>
+            <Input
+              id="filter_end_date_from"
+              type="date"
+              value={filters.end_date_from}
+              onChange={(e) => setFilters((f) => ({ ...f, end_date_from: e.target.value }))}
+            />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="filter_end_date_to">Até (prazo final)</Label>
+            <Input
+              id="filter_end_date_to"
+              type="date"
+              value={filters.end_date_to}
+              onChange={(e) => setFilters((f) => ({ ...f, end_date_to: e.target.value }))}
+            />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="filter_sort">Ordenar por</Label>
+            <Select
+              value={filters.sortBy}
+              onValueChange={(value) =>
+                setFilters((f) => ({ ...f, sortBy: value as typeof filters.sortBy }))
+              }
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="created_at">Data de criação</SelectItem>
+                <SelectItem value="end_date">Vigência</SelectItem>
+                <SelectItem value="accountability_date">Prestação de Contas</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="filter_sort_order">Ordem</Label>
+            <Select
+              value={filters.sortOrder}
+              onValueChange={(value) =>
+                setFilters((f) => ({ ...f, sortOrder: value as typeof filters.sortOrder }))
+              }
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="asc">Crescente</SelectItem>
+                <SelectItem value="desc">Decrescente</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="sm:col-span-2 lg:col-span-4 flex items-center justify-end gap-2 flex-wrap">
+            <Button variant="outline" onClick={() => setFilters({ municipality_id: "", program_id: "", ministry: "", status: "", from_date: "", to_date: "", end_date_from: "", end_date_to: "", sortBy: "created_at", sortOrder: "desc" })}>
               Limpar filtros
             </Button>
             <Button className="ml-2" variant="default" onClick={() => generateProjectsListPdf(projects)}>
@@ -448,65 +543,88 @@ const Projects = () => {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid gap-4">
+        <div className="grid gap-3 md:gap-4 grid-cols-1">
           {projects.map((project) => (
             <Card
               key={project.id}
-              className="hover:shadow-md transition-shadow cursor-pointer"
+              className="hover:shadow-md transition-shadow cursor-pointer w-full overflow-hidden"
               onClick={() => openInfoDialog(project)}
             >
-              <CardHeader>
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <CardTitle className="mb-2">{project.object}</CardTitle>
-                    <CardDescription>
+              <CardHeader className="overflow-hidden">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="mb-2 break-words line-clamp-2">{project.object}</CardTitle>
+                    <CardDescription className="break-words line-clamp-2">
                       {project.municipalities.name} • {project.year}
                       {project.proposal_number && ` • Proposta: ${project.proposal_number}`}
                     </CardDescription>
                   </div>
-                  {getStatusBadge(project.status)}
+                  <div className="flex-shrink-0">
+                    {getStatusBadge(project.status)}
+                  </div>
                 </div>
               </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                  <div>
-                    <p className="text-muted-foreground">Repasse</p>
-                    <p className="font-semibold">{formatCurrency(project.transfer_amount)}</p>
+              <CardContent className="overflow-hidden">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 text-sm mb-4">
+                  <div className="min-w-0">
+                    <p className="text-muted-foreground truncate">Repasse</p>
+                    <p className="font-semibold truncate">{formatCurrency(project.transfer_amount)}</p>
                   </div>
-                  <div>
-                    <p className="text-muted-foreground">Contrapartida</p>
-                    <p className="font-semibold">{formatCurrency(project.counterpart_amount)}</p>
+                  <div className="min-w-0">
+                    <p className="text-muted-foreground truncate">Contrapartida</p>
+                    <p className="font-semibold truncate">{formatCurrency(project.counterpart_amount)}</p>
                   </div>
-                  <div>
-                    <p className="text-muted-foreground">Total</p>
-                    <p className="font-semibold">
+                  <div className="min-w-0">
+                    <p className="text-muted-foreground truncate">Total</p>
+                    <p className="font-semibold truncate">
                       {formatCurrency(project.transfer_amount + project.counterpart_amount)}
                     </p>
                   </div>
-                  <div>
-                    <p className="text-muted-foreground">Execução</p>
-                    <p className="font-semibold">{Number(project.execution_percentage ?? 0).toFixed(2)}%</p>
+                  <div className="min-w-0">
+                    <p className="text-muted-foreground truncate">Execução</p>
+                    <p className="font-semibold truncate">{Number(project.execution_percentage ?? 0).toFixed(2)}%</p>
                   </div>
                 </div>
+                
+                {/* Seção de prazos */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 text-sm border-t pt-4 mb-4">
+                  <div className="min-w-0">
+                    <p className="text-muted-foreground truncate">Data de Início</p>
+                    <p className="font-medium truncate">{formatDate(project.start_date)}</p>
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-muted-foreground truncate">Vigência (Término)</p>
+                    <p className="font-medium truncate">{formatDate(project.end_date)}</p>
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-muted-foreground truncate">Prazo Final</p>
+                    <p className="font-medium truncate">{formatDate(project.final_deadline)}</p>
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-muted-foreground truncate">Prestação de Contas</p>
+                    <p className="font-medium truncate">{formatDate(project.accountability_date)}</p>
+                  </div>
+                </div>
+
                 {project.programs?.name && (
-                  <p className="text-sm text-muted-foreground mt-2">
+                  <p className="text-sm text-muted-foreground mt-2 break-words line-clamp-2">
                     Programa: {project.programs.name}
                   </p>
                 )}
                 {project.ministry && (
-                  <p className="text-sm text-muted-foreground mt-4">
+                  <p className="text-sm text-muted-foreground mt-2 md:mt-4 break-words line-clamp-2">
                     Ministério: {project.ministry}
                   </p>
                 )}
-                <div className="mt-4 flex items-center gap-2">
-                  <Button size="sm" variant="outline" onClick={() => openHistory(project)}>
-                    <History className="mr-1 h-3 w-3" /> Histórico
+                <div className="mt-4 flex items-center gap-2 flex-wrap">
+                  <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); openHistory(project); }} className="flex-shrink-0">
+                    <History className="mr-1 h-3 w-3" /> <span className="hidden sm:inline">Histórico</span>
                   </Button>
-                  <Button size="sm" variant="secondary" onClick={(e) => { e.stopPropagation(); openMunicipalityInfo(project); }}>
-                    <Building2 className="mr-1 h-3 w-3" /> Município
+                  <Button size="sm" variant="secondary" onClick={(e) => { e.stopPropagation(); openMunicipalityInfo(project); }} className="flex-shrink-0">
+                    <Building2 className="mr-1 h-3 w-3" /> <span className="hidden sm:inline">Município</span>
                   </Button>
-                  <Button size="sm" variant="ghost" onClick={() => generateProjectPdfById(project.id)}>
-                    <FileText className="mr-1 h-3 w-3" /> Relatório (PDF)
+                  <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); generateProjectPdfById(project.id); }} className="flex-shrink-0">
+                    <FileText className="mr-1 h-3 w-3" /> <span className="hidden sm:inline">Relatório (PDF)</span>
                   </Button>
                 </div>
               </CardContent>

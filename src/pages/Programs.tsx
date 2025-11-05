@@ -8,6 +8,9 @@ import { useToast } from "@/hooks/use-toast";
 import { ProgramDialog } from "@/components/programs/ProgramDialog";
 import ProgramInfoDialog from "@/components/programs/ProgramInfoDialog";
 import { usePermissions } from "@/hooks/use-permissions";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface Program {
   id: string;
@@ -30,28 +33,86 @@ const Programs = () => {
   const [infoDialogOpen, setInfoDialogOpen] = useState(false);
   const [detailProgram, setDetailProgram] = useState<Program | null>(null);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const [municipalities, setMunicipalities] = useState<{ id: string; name: string }[]>([]);
+  const [filters, setFilters] = useState({
+    status: "" as "" | "Aberto" | "__finalizados__" | "__all__",
+    search: "",
+    municipality_id: "",
+    sortBy: "deadline" as "deadline" | "name" | "created_at",
+  });
   const { toast } = useToast();
   const { permissions } = usePermissions();
 
   useEffect(() => {
+    loadMunicipalities();
     loadPrograms();
-  }, []);
+  }, [filters]);
+
+  const loadMunicipalities = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("municipalities")
+        .select("id, name")
+        .order("name");
+      if (error) throw error;
+      setMunicipalities(data || []);
+    } catch (error) {
+      // silencioso
+    }
+  };
 
   const loadPrograms = async () => {
     try {
-      const [{ data: programsData, error: programsError }, { data: projectsData, error: projectsError }] = await Promise.all([
-        supabase
-          .from("programs")
-          .select("*")
-          .order("created_at", { ascending: false }),
-        supabase
-          .from("projects")
-          .select("program_id, municipalities(name)")
-          .not("program_id", "is", null),
+      let query = supabase.from("programs").select("*");
+
+      // Aplicar filtros
+      if (filters.status === "__finalizados__") {
+        // Mostrar apenas finalizados
+        query = query.eq("status", "Finalizado");
+      } else if (filters.status === "Aberto") {
+        // Status específico (Aberto)
+        query = query.eq("status", "Aberto");
+      } else if (filters.status === "__all__") {
+        // "Todos" - não aplicar filtro de status (mostra todos incluindo finalizados)
+        // Não aplicar filtro
+      } else {
+        // Por padrão (vazio) - mostrar apenas programas abertos (ocultar finalizados)
+        query = query.eq("status", "Aberto");
+      }
+      
+      if (filters.search) {
+        query = query.or(`name.ilike.%${filters.search}%,responsible_agency.ilike.%${filters.search}%`);
+      }
+
+      // Ordenação padrão: menor prazo primeiro (nulls por último)
+      // Só ordena por menor prazo quando não está mostrando finalizados
+      if (filters.sortBy === "deadline") {
+        query = query.order("deadline", { ascending: true, nullsFirst: false });
+      } else if (filters.sortBy === "name") {
+        query = query.order("name", { ascending: true });
+      } else {
+        query = query.order("created_at", { ascending: false });
+      }
+
+      // Buscar projetos separadamente - sempre buscar todos os projetos para mapear municípios
+      // independente do filtro de status do programa
+      let projectsQuery = supabase
+        .from("projects")
+        .select("program_id, municipality_id, municipalities(name, id)")
+        .not("program_id", "is", null);
+
+      // Se há filtro de município, aplicar na query de projetos
+      if (filters.municipality_id) {
+        projectsQuery = projectsQuery.eq("municipality_id", filters.municipality_id);
+      }
+
+      const [{ data: programsData, error: programsError }, { data: projectsData, error: projectsQueryError }] = await Promise.all([
+        query,
+        projectsQuery,
       ]);
 
       if (programsError) throw programsError;
-      if (projectsError) throw projectsError;
+      if (projectsQueryError) throw projectsQueryError;
 
       const programIdToMunicipalities: Record<string, string[]> = {};
       (projectsData || []).forEach((row: any) => {
@@ -64,10 +125,16 @@ const Programs = () => {
         }
       });
 
-      const enriched = (programsData || []).map((p: Program) => ({
+      let enriched = (programsData || []).map((p: Program) => ({
         ...p,
         municipalities: programIdToMunicipalities[p.id] || [],
       }));
+
+      // Se há filtro de município, filtrar apenas programas que têm esse município
+      // Mas não filtrar se estiver mostrando finalizados (pois podem não ter projetos associados)
+      if (filters.municipality_id && filters.status !== "__finalizados__") {
+        enriched = enriched.filter((p) => programIdToMunicipalities[p.id]?.length > 0);
+      }
 
       setPrograms(enriched);
     } catch (error: any) {
@@ -108,6 +175,90 @@ const Programs = () => {
           </Button>
         )}
       </div>
+
+      {/* Seção de Filtros */}
+      <Card>
+        <CardContent className="pt-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
+            <div className="grid gap-2">
+              <Label htmlFor="filter_status">Status</Label>
+              <Select
+                value={filters.status === "" ? "Aberto" : filters.status}
+                onValueChange={(value) => {
+                  if (value === "Aberto") {
+                    setFilters((f) => ({ ...f, status: "" }));
+                  } else {
+                    setFilters((f) => ({ ...f, status: value as typeof filters.status }));
+                  }
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Todos" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__all__">Todos</SelectItem>
+                  <SelectItem value="Aberto">Aberto</SelectItem>
+                  <SelectItem value="__finalizados__">Finalizados</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="filter_municipality">Município</Label>
+              <Select
+                value={filters.municipality_id || undefined}
+                onValueChange={(value) =>
+                  setFilters((f) => ({ ...f, municipality_id: value === "__all__" ? "" : value }))
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Todos" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__all__">Todos</SelectItem>
+                  {municipalities.map((m) => (
+                    <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="filter_search">Buscar</Label>
+              <Input
+                id="filter_search"
+                placeholder="Nome ou órgão responsável"
+                value={filters.search}
+                onChange={(e) => setFilters((f) => ({ ...f, search: e.target.value }))}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="filter_sort">Ordenar por</Label>
+              <Select
+                value={filters.sortBy}
+                onValueChange={(value) =>
+                  setFilters((f) => ({ ...f, sortBy: value as typeof filters.sortBy }))
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="deadline">Menor prazo</SelectItem>
+                  <SelectItem value="name">Nome</SelectItem>
+                  <SelectItem value="created_at">Mais recente</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div className="flex justify-end mt-4">
+            <Button
+              variant="outline"
+              onClick={() => setFilters({ status: "", search: "", municipality_id: "", sortBy: "deadline" })}
+            >
+              Limpar filtros
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
 
       {programs.length === 0 ? (
         <Card>

@@ -51,7 +51,8 @@ export function UserControlPanel({ className }: UserControlPanelProps) {
   const [editTaskDialogOpen, setEditTaskDialogOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<UserTask | null>(null);
   const [settingsDialogOpen, setSettingsDialogOpen] = useState(false);
-  const [taskStatusFilter, setTaskStatusFilter] = useState<'all' | 'in_progress' | 'completed'>('all');
+  const [taskStatusFilter, setTaskStatusFilter] = useState<'all' | 'in_progress' | 'completed' | 'only_completed'>('in_progress');
+  const [taskSortOrder, setTaskSortOrder] = useState<'asc' | 'desc'>('asc'); // 'asc' = menor prazo primeiro (padrão), 'desc' = maior prazo primeiro
   const [newTask, setNewTask] = useState({
     title: "",
     description: "",
@@ -182,25 +183,79 @@ export function UserControlPanel({ className }: UserControlPanelProps) {
     }
   };
 
-  const compareByDueAndPriority = (a: UserTask, b: UserTask) => {
+  const compareByDueAndPriority = (a: UserTask, b: UserTask, sortOrder: 'asc' | 'desc' = 'asc') => {
     const priorityRank: Record<string, number> = { urgent: 0, high: 1, medium: 2, low: 3 };
-    // 1) Prioridade (menor rank = mais urgente)
+    
+    // 1) Vencimento: ordenar por tempo restante até a data de vencimento (PRIORIDADE PRINCIPAL)
+    const now = Date.now();
+    const hasDueA = a.due_date != null;
+    const hasDueB = b.due_date != null;
+    
+    // Se ambas não têm data, usar prioridade e depois criação
+    if (!hasDueA && !hasDueB) {
+      const prA = priorityRank[a.priority] ?? 99;
+      const prB = priorityRank[b.priority] ?? 99;
+      if (prA !== prB) return prA - prB;
+      return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+    }
+    
+    // Tarefas sem data vão para o final (ou início dependendo da ordem)
+    if (!hasDueA) return sortOrder === 'asc' ? 1 : -1;
+    if (!hasDueB) return sortOrder === 'asc' ? -1 : 1;
+    
+    const dueA = new Date(a.due_date!).getTime();
+    const dueB = new Date(b.due_date!).getTime();
+    
+    // Calcular tempo restante (diferença em milissegundos)
+    const timeRemainingA = dueA - now;
+    const timeRemainingB = dueB - now;
+    
+    // Tarefas vencidas (tempo negativo) devem aparecer primeiro
+    const isOverdueA = timeRemainingA < 0;
+    const isOverdueB = timeRemainingB < 0;
+    
+    if (isOverdueA && !isOverdueB) return -1; // A vencida, B não - A primeiro
+    if (!isOverdueA && isOverdueB) return 1;  // A não vencida, B vencida - B primeiro
+    
+    // Ordenar por tempo restante conforme a ordem selecionada
+    // Para tarefas vencidas: usar valor absoluto (menos vencida = menor valor absoluto)
+    // Para tarefas não vencidas: usar valor normal (menos tempo = mais urgente)
+    let timeComparison = 0;
+    
+    if (isOverdueA && isOverdueB) {
+      // Ambas vencidas: comparar pelo valor absoluto
+      // -21h (abs=21) é melhor que -165h (abs=165) - menos vencida primeiro
+      const absA = Math.abs(timeRemainingA);
+      const absB = Math.abs(timeRemainingB);
+      if (sortOrder === 'asc') {
+        // Menor prazo: menos vencida primeiro (menor valor absoluto primeiro)
+        timeComparison = absA - absB;
+      } else {
+        // Maior prazo: mais vencida primeiro (maior valor absoluto primeiro)
+        timeComparison = absB - absA;
+      }
+    } else {
+      // Ambas não vencidas: comparar normalmente pelo tempo restante
+      if (sortOrder === 'asc') {
+        // Menor prazo: menor tempo restante primeiro (21h antes de 7 dias)
+        timeComparison = timeRemainingA - timeRemainingB;
+      } else {
+        // Maior prazo: maior tempo restante primeiro (7 dias antes de 21h)
+        timeComparison = timeRemainingB - timeRemainingA;
+      }
+    }
+    
+    // Se o tempo restante for diferente, retornar a comparação
+    if (timeComparison !== 0) {
+      return timeComparison;
+    }
+    
+    // 2) Desempate por prioridade (se o prazo for igual)
     const prA = priorityRank[a.priority] ?? 99;
     const prB = priorityRank[b.priority] ?? 99;
     if (prA !== prB) return prA - prB;
-
-    // 2) Vencimento: primeiro vencidas (overdue), depois mais próximas
-    const now = Date.now();
-    const dueA = a.due_date ? new Date(a.due_date).getTime() : Infinity;
-    const dueB = b.due_date ? new Date(b.due_date).getTime() : Infinity;
-
-    const overdueA = dueA < now ? 1 : 0;
-    const overdueB = dueB < now ? 1 : 0;
-    if (overdueA !== overdueB) return overdueB - overdueA; // 1 antes de 0 (overdue primeiro)
-
-    if (dueA !== dueB) return dueA - dueB; // mais próximo primeiro
-
-    // 3) Desempate por criação (mais antigo primeiro)
+    
+    // 3) Desempate final por criação (mais antigo primeiro)
     return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
   };
 
@@ -295,7 +350,7 @@ export function UserControlPanel({ className }: UserControlPanelProps) {
                   <div className="space-y-2">
                     {tasks
                       .slice()
-                      .sort(compareByDueAndPriority)
+                      .sort((a, b) => compareByDueAndPriority(a, b, 'asc'))
                       .slice(0, 5)
                       .map((task) => (
                       <div key={task.id} className="flex items-center justify-between p-2 border rounded">
@@ -428,18 +483,44 @@ export function UserControlPanel({ className }: UserControlPanelProps) {
             </div>
 
             <div className="space-y-2">
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground flex-wrap">
                   <span>Filtro:</span>
                   <Button size="sm" variant={taskStatusFilter === 'all' ? 'default' : 'outline'} onClick={() => setTaskStatusFilter('all')}>Todas</Button>
                   <Button size="sm" variant={taskStatusFilter === 'in_progress' ? 'default' : 'outline'} onClick={() => setTaskStatusFilter('in_progress')}>Em andamento</Button>
-                  <Button size="sm" variant={taskStatusFilter === 'completed' ? 'default' : 'outline'} onClick={() => setTaskStatusFilter('completed')}>Concluídas</Button>
+                  <Button size="sm" variant={taskStatusFilter === 'only_completed' ? 'default' : 'outline'} onClick={() => setTaskStatusFilter('only_completed')}>Apenas Finalizadas</Button>
+                </div>
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <span>Ordenar por:</span>
+                  <Select
+                    value={taskSortOrder}
+                    onValueChange={(value) => setTaskSortOrder(value as 'asc' | 'desc')}
+                  >
+                    <SelectTrigger className="w-[150px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="asc">Menor prazo</SelectItem>
+                      <SelectItem value="desc">Maior prazo</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
               {tasks
-                .filter(t => taskStatusFilter === 'all' ? true : t.status === taskStatusFilter)
+                .filter(t => {
+                  // Por padrão (all), excluir finalizadas e canceladas
+                  if (taskStatusFilter === 'all') {
+                    return t.status !== 'completed' && t.status !== 'cancelled';
+                  }
+                  // Mostrar apenas finalizadas
+                  if (taskStatusFilter === 'only_completed') {
+                    return t.status === 'completed' || t.status === 'cancelled';
+                  }
+                  // Status específico
+                  return t.status === taskStatusFilter;
+                })
                 .slice()
-                .sort(compareByDueAndPriority)
+                .sort((a, b) => compareByDueAndPriority(a, b, taskSortOrder))
                 .map((task) => (
                 <Card key={task.id}>
                   <CardContent className="p-4">

@@ -7,6 +7,8 @@ import { useToast } from "@/hooks/use-toast";
 import { MunicipalityDialog } from "@/components/municipalities/MunicipalityDialog";
 import MunicipalityInfoDialog from "@/components/municipalities/MunicipalityInfoDialog";
 import { usePermissions } from "@/hooks/use-permissions";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 
 interface Municipality {
   id: string;
@@ -21,17 +23,36 @@ interface Municipality {
 
 const Municipalities = () => {
   const [municipalities, setMunicipalities] = useState<Municipality[]>([]);
+  const [filteredMunicipalities, setFilteredMunicipalities] = useState<Municipality[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedMunicipality, setSelectedMunicipality] = useState<Municipality | undefined>(undefined);
   const [infoDialogOpen, setInfoDialogOpen] = useState(false);
   const [detailMunicipality, setDetailMunicipality] = useState<Municipality | null>(null);
+  const [searchFilter, setSearchFilter] = useState("");
   const { toast } = useToast();
   const { permissions } = usePermissions();
 
   useEffect(() => {
     loadMunicipalities();
   }, []);
+
+  useEffect(() => {
+    if (!searchFilter.trim()) {
+      setFilteredMunicipalities(municipalities);
+    } else {
+      const searchLower = searchFilter.toLowerCase();
+      const filtered = municipalities.filter(
+        (m) =>
+          m.name.toLowerCase().includes(searchLower) ||
+          m.state.toLowerCase().includes(searchLower) ||
+          (m.manager && m.manager.toLowerCase().includes(searchLower)) ||
+          (m.email && m.email.toLowerCase().includes(searchLower)) ||
+          (m.cnpj && m.cnpj.includes(searchFilter))
+      );
+      setFilteredMunicipalities(filtered);
+    }
+  }, [searchFilter, municipalities]);
 
   const loadMunicipalities = async () => {
     try {
@@ -42,6 +63,7 @@ const Municipalities = () => {
 
       if (error) throw error;
       setMunicipalities(data || []);
+      setFilteredMunicipalities(data || []);
     } catch (error: any) {
       toast({
         title: "Erro ao carregar municípios",
@@ -76,6 +98,32 @@ const Municipalities = () => {
         )}
       </div>
 
+      {/* Filtro de busca */}
+      <Card>
+        <CardContent className="pt-6">
+          <div className="grid gap-2">
+            <Label htmlFor="search_municipality">Buscar município</Label>
+            <Input
+              id="search_municipality"
+              placeholder="Nome, estado, gestor, email ou CNPJ"
+              value={searchFilter}
+              onChange={(e) => setSearchFilter(e.target.value)}
+            />
+          </div>
+          {searchFilter && (
+            <div className="flex justify-end mt-4">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setSearchFilter("")}
+              >
+                Limpar busca
+              </Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       {municipalities.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12">
@@ -88,9 +136,18 @@ const Municipalities = () => {
             )}
           </CardContent>
         </Card>
+      ) : filteredMunicipalities.length === 0 ? (
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center py-12">
+            <p className="text-muted-foreground mb-4">Nenhum município encontrado com o filtro aplicado</p>
+            <Button variant="outline" onClick={() => setSearchFilter("")}>
+              Limpar busca
+            </Button>
+          </CardContent>
+        </Card>
       ) : (
         <div className="grid gap-3 md:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
-          {municipalities.map((municipality) => (
+          {filteredMunicipalities.map((municipality) => (
             <Card
               key={municipality.id}
               className="hover:shadow-md transition-shadow cursor-pointer"

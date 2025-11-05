@@ -57,6 +57,7 @@ interface Project {
   status: ProjectStatus;
   start_date: string | null;
   end_date: string | null;
+  final_deadline: string | null;
   accountability_date: string | null;
   document_request_date?: string | null;
   document_deadline_date?: string | null;
@@ -101,6 +102,7 @@ export function ProjectDialog({
     status: "em_criacao",
     start_date: "",
     end_date: "",
+    final_deadline: "",
     accountability_date: "",
     document_request_date: "",
     document_deadline_date: "",
@@ -136,6 +138,7 @@ export function ProjectDialog({
         status: project.status ?? "em_criacao",
         start_date: project.start_date ?? "",
         end_date: project.end_date ?? "",
+        final_deadline: project.final_deadline ?? "",
         accountability_date: project.accountability_date ?? "",
         document_request_date: project.document_request_date ?? "",
         document_deadline_date: project.document_deadline_date ?? "",
@@ -179,6 +182,7 @@ export function ProjectDialog({
       status: data.status,
       start_date: data.start_date && data.start_date.trim() !== "" ? data.start_date : null,
       end_date: data.end_date && data.end_date.trim() !== "" ? data.end_date : null,
+      final_deadline: data.final_deadline && data.final_deadline.trim() !== "" ? data.final_deadline : null,
       accountability_date: data.accountability_date && data.accountability_date.trim() !== "" ? data.accountability_date : null,
       document_request_date: data.document_request_date && data.document_request_date.trim() !== "" ? data.document_request_date : null,
       document_deadline_date: data.document_deadline_date && data.document_deadline_date.trim() !== "" ? data.document_deadline_date : null,
@@ -581,7 +585,7 @@ export function ProjectDialog({
                 )}
               </div>
 
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div className="grid gap-2">
                   <Label htmlFor="start_date">Início</Label>
                   <Input
@@ -594,13 +598,24 @@ export function ProjectDialog({
                   />
                 </div>
                 <div className="grid gap-2">
-                  <Label htmlFor="end_date">Fim</Label>
+                  <Label htmlFor="end_date">Vigência (Término)</Label>
                   <Input
                     id="end_date"
                     type="date"
                     value={formData.end_date || ""}
                     onChange={(e) =>
                       setFormData({ ...formData, end_date: e.target.value })
+                    }
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="final_deadline">Prazo Final</Label>
+                  <Input
+                    id="final_deadline"
+                    type="date"
+                    value={formData.final_deadline || ""}
+                    onChange={(e) =>
+                      setFormData({ ...formData, final_deadline: e.target.value })
                     }
                   />
                 </div>

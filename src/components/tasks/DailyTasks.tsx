@@ -110,6 +110,7 @@ export const DailyTasks = () => {
         object: p.object,
       }));
 
+      // Sempre ordenar por menor prazo (ordem padrão obrigatória)
       const sortByDue = (arr: TaskItem[]) =>
         arr
           .slice()
@@ -148,7 +149,7 @@ export const DailyTasks = () => {
 
   return (
     <div className="grid gap-4 md:grid-cols-2">
-      <Card>
+        <Card>
         <CardHeader className="flex items-center justify-between">
           <CardTitle className="flex items-center gap-2">
             Atividades do Dia
