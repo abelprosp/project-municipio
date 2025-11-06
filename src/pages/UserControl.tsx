@@ -76,7 +76,26 @@ export function UserControlPage() {
         .from("profiles")
         .select("*")
         .eq("id", authUser.id)
-        .single();
+        .maybeSingle();
+
+      // Tentar obter nome de full_name ou name (fallback)
+      // Prioridade: metadata > profiles.full_name > profiles.name > email (não usar email como nome)
+      let fullName = "";
+      
+      // 1. Primeiro tentar da metadata (sempre atualizada)
+      if (authUser.user_metadata?.full_name && authUser.user_metadata.full_name.trim() !== "") {
+        fullName = authUser.user_metadata.full_name;
+      }
+      // 2. Se não tiver na metadata, tentar da tabela profiles
+      else if (profileData) {
+        if (profileData.full_name && profileData.full_name.trim() !== "") {
+          fullName = profileData.full_name;
+        } else if ((profileData as any).name && (profileData as any).name.trim() !== "") {
+          fullName = (profileData as any).name;
+        }
+      }
+      
+      // Não usar email como nome - deixar vazio se não encontrar
 
       const userProfile: UserProfile = {
         id: authUser.id,
@@ -85,12 +104,19 @@ export function UserControlPage() {
         last_sign_in_at: authUser.last_sign_in_at,
         email_confirmed_at: authUser.email_confirmed_at,
         phone: profileData?.phone || "",
-        full_name: profileData?.full_name || authUser.user_metadata?.full_name || ""
+        full_name: fullName
       };
 
       setUser(userProfile);
+      
+      // Garantir que não usamos email como nome - se full_name estiver vazio ou for igual ao email, deixar vazio
+      let displayName = userProfile.full_name || "";
+      if (displayName === userProfile.email || displayName.trim() === "") {
+        displayName = "";
+      }
+      
       setProfileData({
-        full_name: userProfile.full_name || "",
+        full_name: displayName,
         phone: userProfile.phone || ""
       });
 
@@ -139,57 +165,151 @@ export function UserControlPage() {
       const { data: { user: authUser } } = await supabase.auth.getUser();
       if (!authUser) return;
 
-      // Atualizar ou criar perfil na tabela profiles
-      const { error: profileError } = await supabase
-        .from("profiles")
-        .upsert({
-          id: authUser.id,
-          full_name: profileData.full_name,
-          phone: profileData.phone,
-          updated_at: new Date().toISOString()
-        });
+      // Validar nome
+      if (!profileData.full_name || profileData.full_name.trim() === "") {
+        setErrors({ full_name: "O nome é obrigatório" });
+        setSaving(false);
+        return;
+      }
 
-      if (profileError) throw profileError;
+      const trimmedName = profileData.full_name.trim();
+      
+      // Garantir que o nome não seja igual ao email
+      if (trimmedName === authUser.email) {
+        setErrors({ full_name: "O nome não pode ser igual ao email" });
+        setSaving(false);
+        return;
+      }
+      
+      const trimmedPhone = profileData.phone?.trim() || null;
 
-      // Atualizar metadata do usuário
-      const { error: metadataError } = await supabase.auth.updateUser({
+      // Estratégia: Tentar salvar na tabela profiles, mas sempre salvar na metadata do usuário
+      // A metadata sempre funciona e é o que será usado para exibir o nome no Dashboard
+      let profileSaved = false;
+      let profileError: any = null;
+
+      // Tentar salvar na tabela profiles (opcional - pode falhar se colunas não existirem)
+      try {
+        // Tentar com full_name primeiro
+        const { error: fullNameError } = await supabase
+          .from("profiles")
+          .upsert({
+            id: authUser.id,
+            full_name: trimmedName,
+            phone: trimmedPhone,
+          }, {
+            onConflict: 'id'
+          })
+          .select();
+
+        if (fullNameError) {
+          // Se o erro for sobre a coluna full_name não existir, tentar com name
+          if (fullNameError.message?.includes('full_name') || 
+              fullNameError.message?.includes('column') || 
+              fullNameError.code === 'PGRST116' ||
+              fullNameError.message?.includes('schema cache') ||
+              fullNameError.message?.includes('Could not find')) {
+            console.warn("Coluna full_name não encontrada, tentando com name:", fullNameError);
+            
+            // Tentar com name como fallback
+            const { error: nameError } = await supabase
+              .from("profiles")
+              .upsert({
+                id: authUser.id,
+                name: trimmedName,
+                phone: trimmedPhone,
+              }, {
+                onConflict: 'id'
+              })
+              .select();
+
+            if (!nameError) {
+              profileSaved = true;
+              console.log("Perfil atualizado usando coluna 'name'");
+            } else {
+              console.warn("Não foi possível salvar na tabela profiles:", nameError);
+              profileError = nameError;
+            }
+          } else if (fullNameError.code === '42501' || 
+                     fullNameError.message?.includes('permission denied') || 
+                     fullNameError.message?.includes('row-level security')) {
+            console.warn("Erro de permissão ao atualizar profiles:", fullNameError);
+            profileError = fullNameError;
+          } else {
+            console.warn("Erro ao atualizar profiles:", fullNameError);
+            profileError = fullNameError;
+          }
+        } else {
+          profileSaved = true;
+          console.log("Perfil atualizado usando coluna 'full_name'");
+        }
+      } catch (err) {
+        console.warn("Erro ao tentar salvar na tabela profiles:", err);
+        profileError = err;
+      }
+
+      // SEMPRE atualizar metadata do usuário (isso sempre funciona e é o que importa)
+      const { data: updatedUser, error: metadataError } = await supabase.auth.updateUser({
         data: {
-          full_name: profileData.full_name
+          full_name: trimmedName
         }
       });
 
-      if (metadataError) throw metadataError;
+      if (metadataError) {
+        // Se a metadata também falhar, aí sim temos um problema real
+        throw new Error(`Não foi possível atualizar o perfil: ${metadataError.message}`);
+      }
 
-      // Atualizar estado local
-      setUser(prev => prev ? {
-        ...prev,
-        full_name: profileData.full_name,
-        phone: profileData.phone
-      } : null);
+      // Se conseguimos salvar na metadata, consideramos sucesso
+      // A tabela profiles é opcional - se não conseguir salvar lá, não é crítico
+      if (!profileSaved) {
+        console.log("Nome salvo na metadata do usuário (tabela profiles não disponível)");
+      }
 
-      // Log da atividade
-      await logActivity(
-        "update",
-        "profile",
-        authUser.id,
-        "Perfil do Usuário",
-        "Usuário atualizou suas informações pessoais",
-        { 
-          full_name: profileData.full_name,
-          phone: profileData.phone 
-        }
-      );
+      // Não atualizar estado local aqui - vamos recarregar o perfil completo depois
+
+      // Log da atividade (não bloquear se falhar)
+      try {
+        await logActivity(
+          "update",
+          "profile",
+          authUser.id,
+          "Perfil do Usuário",
+          "Usuário atualizou suas informações pessoais",
+          { 
+            full_name: trimmedName,
+            phone: trimmedPhone 
+          }
+        );
+      } catch (logError) {
+        console.warn("Erro ao registrar atividade:", logError);
+      }
 
       toast({
         title: "Perfil atualizado",
         description: "Suas informações foram salvas com sucesso.",
       });
 
+      // Aguardar um pouco para garantir que a metadata foi atualizada no servidor
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Recarregar o perfil completo para garantir que tudo está sincronizado
+      await loadUserProfile();
+
     } catch (error: any) {
       console.error("Erro ao atualizar perfil:", error);
+      
+      let errorMessage = error.message || "Não foi possível atualizar o perfil.";
+      
+      // Mensagem mais específica
+      if (error.message?.includes('permission denied') || 
+          error.message?.includes('row-level security')) {
+        errorMessage = "Você não tem permissão para atualizar o perfil. Verifique suas permissões no banco de dados.";
+      }
+      
       toast({
         title: "Erro",
-        description: error.message || "Não foi possível atualizar o perfil.",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {

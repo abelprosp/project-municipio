@@ -123,7 +123,7 @@ export function useUserControl() {
           .from("user_notification_settings")
           .select("*")
           .eq("user_id", user.id)
-          .single()
+          .maybeSingle()
       ]);
 
       // Verificar se a requisição foi cancelada antes de atualizar o estado
@@ -132,10 +132,24 @@ export function useUserControl() {
       setActivities(activitiesRes.data || []);
       setTasks(tasksRes.data || []);
       setNotifications(notificationsRes.data || []);
-      setNotificationSettings(settingsRes.data);
+      // Tratar erro 406 (Not Acceptable) quando não há registro - usar null
+      if (settingsRes.error && settingsRes.error.code === 'PGRST116') {
+        setNotificationSettings(null);
+      } else if (settingsRes.error) {
+        // Outros erros - logar mas não bloquear
+        console.warn("Erro ao carregar configurações de notificação:", settingsRes.error);
+        setNotificationSettings(null);
+      } else {
+        setNotificationSettings(settingsRes.data);
+      }
     } catch (error: any) {
       // Ignorar erros de cancelamento
       if (error.name === 'AbortError' || abortController.signal.aborted) {
+        return;
+      }
+      // Ignorar erro 406 (Not Acceptable) para user_notification_settings
+      if (error.code === 'PGRST116' && error.message?.includes('user_notification_settings')) {
+        setNotificationSettings(null);
         return;
       }
       console.error("Erro ao carregar dados do usuário:", error);

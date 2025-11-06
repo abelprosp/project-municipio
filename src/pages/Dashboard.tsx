@@ -56,6 +56,7 @@ const Dashboard = () => {
   const [municipalitiesBoardFilter, setMunicipalitiesBoardFilter] = useState({ status: "all", showAll: false });
   const [municipalityDialogOpen, setMunicipalityDialogOpen] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
+  const [userName, setUserName] = useState<string>("Usuário");
   
   // Filtros específicos para Progresso Geral
   const [progressFilters, setProgressFilters] = useState({
@@ -72,6 +73,115 @@ const Dashboard = () => {
   
   // Hook para controle de usuário
   const { logActivity } = useUserControl();
+
+  // Carregar nome do usuário
+  useEffect(() => {
+    const loadUserName = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+
+        // Prioridade: metadata > profiles.full_name > profiles.name
+        // Não usar email como nome - deixar "Usuário" se não houver nome
+        
+        // 1. Primeiro tentar da metadata (sempre atualizada quando o usuário salva)
+        if (user.user_metadata?.full_name && 
+            user.user_metadata.full_name.trim() !== "" &&
+            user.user_metadata.full_name !== user.email) {
+          setUserName(user.user_metadata.full_name);
+          return;
+        }
+
+        // 2. Se não tiver na metadata, tentar da tabela profiles
+        const { data: profile, error: profileError } = await supabase
+          .from("profiles")
+          .select("*")
+          .eq("id", user.id)
+          .maybeSingle();
+
+        if (!profileError && profile) {
+          const profileData = profile as { full_name?: string | null; name?: string | null };
+          
+          // Tentar full_name primeiro
+          if (profileData.full_name && 
+              typeof profileData.full_name === 'string' &&
+              profileData.full_name.trim() !== "" &&
+              profileData.full_name !== user.email) {
+            setUserName(profileData.full_name);
+            return;
+          }
+          
+          // Tentar name como fallback
+          if (profileData.name && 
+              typeof profileData.name === 'string' &&
+              profileData.name.trim() !== "" &&
+              profileData.name !== user.email) {
+            setUserName(profileData.name);
+            return;
+          }
+        }
+        
+        // Se não encontrou nome válido, manter "Usuário" (não usar email)
+        // O estado inicial já é "Usuário", então não precisa fazer nada
+      } catch (error) {
+        // Silencioso - manter "Usuário" como padrão
+        console.warn("Erro ao carregar nome do usuário:", error);
+      }
+    };
+
+    loadUserName();
+
+    // Escutar mudanças no perfil em tempo real
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+    (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      channel = supabase
+        .channel('profile-changes')
+        .on('postgres_changes', {
+          event: '*',
+          schema: 'public',
+          table: 'profiles',
+        }, async (payload) => {
+          const { data: { user: currentUser } } = await supabase.auth.getUser();
+          if (currentUser && payload.new && (payload.new as any).id === currentUser.id) {
+            const newName = (payload.new as any).full_name || (payload.new as any).name;
+            // Só atualizar se o nome for válido e não for igual ao email
+            if (newName && 
+                newName.trim() !== "" && 
+                newName !== currentUser.email) {
+              setUserName(newName);
+            }
+          }
+        })
+        .subscribe();
+    })();
+
+    // Escutar mudanças na autenticação (quando metadata é atualizada)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'USER_UPDATED' && session?.user) {
+        // Recarregar nome quando o usuário for atualizado
+        // Priorizar metadata primeiro
+        if (session.user.user_metadata?.full_name && 
+            session.user.user_metadata.full_name.trim() !== "" &&
+            session.user.user_metadata.full_name !== session.user.email) {
+          setUserName(session.user.user_metadata.full_name);
+        } else {
+          // Se não tiver na metadata, recarregar completo
+          loadUserName();
+        }
+      }
+    });
+
+    return () => {
+      if (channel) {
+        supabase.removeChannel(channel);
+      }
+      subscription.unsubscribe();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     loadOptions();
@@ -593,8 +703,10 @@ const Dashboard = () => {
             </Button>
             {/* Usuário */}
             <div className="flex items-center gap-1 md:gap-2 rounded-full border px-2 py-1 ml-auto">
-              <User className="h-3 w-3 md:h-4 md:w-4" />
-              <span className="text-xs md:text-sm hidden sm:inline">Usuário</span>
+              <User className="h-3 w-3 md:h-4 md:w-4 flex-shrink-0" />
+              <span className="text-xs md:text-sm hidden sm:inline truncate max-w-[150px]" title={userName}>
+                {userName}
+              </span>
             </div>
           </div>
         </div>
