@@ -68,6 +68,7 @@ const Projects = () => {
   const [historyFrom, setHistoryFrom] = useState<string>("");
   const [historyTo, setHistoryTo] = useState<string>("");
   const [activityForm, setActivityForm] = useState({ description: "", responsible: "", date: new Date().toISOString().slice(0, 10) });
+  const [savingActivity, setSavingActivity] = useState(false);
   const [infoDialogOpen, setInfoDialogOpen] = useState(false);
   const [detailProject, setDetailProject] = useState<any | null>(null);
   const [munInfoOpen, setMunInfoOpen] = useState(false);
@@ -77,13 +78,37 @@ const Projects = () => {
   const { permissions } = usePermissions();
 
   useEffect(() => {
-    loadOptions();
-    loadProjects();
+    let mounted = true;
+    
+    const loadData = async () => {
+      await loadOptions();
+      if (mounted) {
+        await loadProjects();
+      }
+    };
+    
+    loadData();
+    
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   useEffect(() => {
+    let mounted = true;
+    
     // Recarregar projetos quando filtros mudarem
-    loadProjects();
+    const loadData = async () => {
+      if (mounted) {
+        await loadProjects();
+      }
+    };
+    
+    loadData();
+    
+    return () => {
+      mounted = false;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filters]);
 
@@ -239,14 +264,25 @@ const Projects = () => {
   };
 
   const saveActivity = async () => {
-    if (!activeProject) return;
+    if (!activeProject || savingActivity) return;
+    
+    if (!activityForm.description.trim()) {
+      toast({
+        title: "Erro de validação",
+        description: "A descrição da atividade é obrigatória.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    setSavingActivity(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
       const { error } = await supabase.from("movements").insert({
         project_id: activeProject.id,
         stage: activeProject.status,
-        description: activityForm.description,
-        responsible: activityForm.responsible || null,
+        description: activityForm.description.trim(),
+        responsible: activityForm.responsible?.trim() || null,
         date: new Date(activityForm.date).toISOString(),
         created_by: user ? user.id : null,
       });
@@ -256,6 +292,8 @@ const Projects = () => {
       await openHistory(activeProject);
     } catch (err: any) {
       toast({ title: "Erro ao salvar atividade", description: err.message, variant: "destructive" });
+    } finally {
+      setSavingActivity(false);
     }
   };
 
@@ -714,7 +752,9 @@ const Projects = () => {
             </div>
           </div>
           <DialogFooter>
-                <Button onClick={saveActivity}>Salvar atividade</Button>
+                <Button onClick={saveActivity} disabled={savingActivity}>
+                  {savingActivity ? "Salvando..." : "Salvar atividade"}
+                </Button>
                 <Button variant="outline" onClick={() => exportMovementsToCsv(movements)}>Exportar atividades (Excel)</Button>
           </DialogFooter>
         </DialogContent>

@@ -5,3 +5,4 @@ ALTER TABLE projects
 -- Optional: create index for faster filtering by final deadline
 CREATE INDEX IF NOT EXISTS projects_final_deadline_idx ON projects(final_deadline);
 
+

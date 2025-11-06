@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -25,6 +25,7 @@ import { generateProjectPdfById } from "@/lib/pdf";
 import { FileText, PlusCircle } from "lucide-react";
 import { usePermissions } from "@/hooks/use-permissions";
 import { useUserControl } from "@/hooks/use-user-control";
+import { validateDate } from "@/lib/utils";
 
 type AmendmentType = "extra" | "individual" | "rp2" | "outro";
 type ProjectStatus = 
@@ -87,6 +88,7 @@ export function ProjectDialog({
   const [loading, setLoading] = useState(false);
   const [municipalities, setMunicipalities] = useState<any[]>([]);
   const [programs, setPrograms] = useState<any[]>([]);
+  const isSubmittingRef = useRef(false);
   const DEFAULT_FORM: Project = {
     municipality_id: "",
     program_id: null,
@@ -118,7 +120,11 @@ export function ProjectDialog({
 
   // Sincroniza o formulário quando um projeto é passado para edição
   useEffect(() => {
-    if (!open) return; // apenas ao abrir o diálogo
+    if (!open) {
+      // Resetar o ref quando o diálogo fecha
+      isSubmittingRef.current = false;
+      return;
+    }
     if (project) {
       // Garantir tipos corretos e preencher valores ausentes
       setFormData({
@@ -192,16 +198,85 @@ export function ProjectDialog({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Proteção contra múltiplas submissões simultâneas
+    if (loading || isSubmittingRef.current) {
+      return;
+    }
+    
+    // Validações de datas
+    if (formData.start_date && !validateDate(formData.start_date, true)) {
+      toast({
+        title: "Erro de validação",
+        description: "Data de início inválida.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    if (formData.end_date && !validateDate(formData.end_date, true)) {
+      toast({
+        title: "Erro de validação",
+        description: "Data de término inválida.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    if (formData.final_deadline && !validateDate(formData.final_deadline, true)) {
+      toast({
+        title: "Erro de validação",
+        description: "Prazo final inválido.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    if (formData.accountability_date && !validateDate(formData.accountability_date, true)) {
+      toast({
+        title: "Erro de validação",
+        description: "Data de prestação de contas inválida.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    // Validar que datas de término não sejam anteriores à data de início
+    if (formData.start_date && formData.end_date) {
+      const startDate = new Date(formData.start_date);
+      const endDate = new Date(formData.end_date);
+      if (endDate < startDate) {
+        toast({
+          title: "Erro de validação",
+          description: "A data de término não pode ser anterior à data de início.",
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+    
+    isSubmittingRef.current = true;
     setLoading(true);
 
     try {
       if (project?.id) {
-        const { error } = await supabase
+        let payload = buildProjectPayload(formData);
+        let { error } = await supabase
           .from("projects")
-          .update(buildProjectPayload(formData))
+          .update(payload)
           .eq("id", project.id);
 
-        if (error) throw error;
+        // Se o erro for sobre a coluna final_deadline não existir, tentar sem ela
+        if (error && error.message?.includes("final_deadline")) {
+          const { final_deadline, ...payloadWithoutFinalDeadline } = payload;
+          const retryResult = await supabase
+            .from("projects")
+            .update(payloadWithoutFinalDeadline)
+            .eq("id", project.id);
+          if (retryResult.error) throw retryResult.error;
+        } else if (error) {
+          throw error;
+        }
 
         // Gerar notificações de prazos após atualização
         try {
@@ -232,11 +307,29 @@ export function ProjectDialog({
           }
         );
       } else {
-        const { error } = await supabase
+        let payload = buildProjectPayload(formData);
+        
+        // Tentar inserir primeiro sem final_deadline se estiver vazio ou se a coluna pode não existir
+        // Isso evita o erro e o retry que pode causar duplicatas
+        const { final_deadline, ...payloadWithoutFinalDeadline } = payload;
+        const payloadToInsert = payload.final_deadline ? payload : payloadWithoutFinalDeadline;
+        
+        let { error, data } = await supabase
           .from("projects")
-          .insert([buildProjectPayload(formData)]);
+          .insert([payloadToInsert])
+          .select();
 
-        if (error) throw error;
+        // Se o erro for especificamente sobre a coluna final_deadline não existir, tentar sem ela
+        // Mas só se o primeiro INSERT realmente falhou (não criou nenhum projeto)
+        if (error && error.message?.includes("final_deadline") && !data?.length) {
+          const retryResult = await supabase
+            .from("projects")
+            .insert([payloadWithoutFinalDeadline])
+            .select();
+          if (retryResult.error) throw retryResult.error;
+        } else if (error) {
+          throw error;
+        }
 
         // Gerar notificações de prazos após criação
         try {
@@ -271,13 +364,21 @@ export function ProjectDialog({
       onSuccess();
       onOpenChange(false);
     } catch (error: any) {
+      let errorMessage = error.message;
+      
+      // Mensagem mais amigável se o erro for sobre final_deadline
+      if (error.message?.includes("final_deadline")) {
+        errorMessage = "A coluna 'final_deadline' não existe no banco de dados. Execute o script SQL 'fix_final_deadline.sql' no Supabase Dashboard para corrigir.";
+      }
+      
       toast({
         title: "Erro ao salvar",
-        description: error.message,
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
       setLoading(false);
+      isSubmittingRef.current = false;
     }
   };
 

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -14,6 +14,7 @@ const Auth = () => {
   const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const isSubmittingRef = useRef(false);
   // Mantemos a lógica de criação para uso futuro, mas não exposta na UI
   const registerUser = async ({ email, password, name }: { email: string; password: string; name?: string }) => {
     return supabase.auth.signUp({
@@ -27,23 +28,42 @@ const Auth = () => {
   };
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (session) {
+    let subscription: any;
+    let mounted = true;
+
+    const setup = async () => {
+      const { data } = supabase.auth.onAuthStateChange((event, session) => {
+        if (mounted && session) {
+          navigate("/");
+        }
+      });
+      subscription = data.subscription;
+
+      const { data: { session } } = await supabase.auth.getSession();
+      if (mounted && session) {
         navigate("/");
       }
-    });
+    };
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) {
-        navigate("/");
+    setup();
+
+    return () => {
+      mounted = false;
+      if (subscription) {
+        subscription.unsubscribe();
       }
-    });
-
-    return () => subscription.unsubscribe();
+    };
   }, [navigate]);
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Proteção contra múltiplas submissões
+    if (loading || isSubmittingRef.current) {
+      return;
+    }
+    
+    isSubmittingRef.current = true;
     setLoading(true);
 
     try {
@@ -66,6 +86,7 @@ const Auth = () => {
       });
     } finally {
       setLoading(false);
+      isSubmittingRef.current = false;
     }
   };
 

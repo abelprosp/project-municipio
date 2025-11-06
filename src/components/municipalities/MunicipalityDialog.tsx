@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -16,6 +16,7 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { usePermissions } from "@/hooks/use-permissions";
 import { useUserControl } from "@/hooks/use-user-control";
+import { validateCNPJ, validateEmail, validateUF } from "@/lib/utils";
 
 interface Municipality {
   id?: string;
@@ -47,6 +48,7 @@ export function MunicipalityDialog({
   const { permissions } = usePermissions();
   const { logActivity } = useUserControl();
   const [loading, setLoading] = useState(false);
+  const isSubmittingRef = useRef(false);
   const [formData, setFormData] = useState<Municipality>(
     municipality || {
       name: "",
@@ -63,6 +65,44 @@ export function MunicipalityDialog({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Proteção contra múltiplas submissões
+    if (loading || isSubmittingRef.current) {
+      return;
+    }
+    
+    // Validações
+    if (!validateUF(formData.state)) {
+      toast({
+        title: "Erro de validação",
+        description: "UF deve ter 2 caracteres (ex: RS, SP).",
+        variant: "destructive",
+      });
+      isSubmittingRef.current = false;
+      return;
+    }
+    
+    if (formData.cnpj && !validateCNPJ(formData.cnpj)) {
+      toast({
+        title: "Erro de validação",
+        description: "CNPJ inválido. Verifique o número digitado.",
+        variant: "destructive",
+      });
+      isSubmittingRef.current = false;
+      return;
+    }
+    
+    if (formData.email && !validateEmail(formData.email)) {
+      toast({
+        title: "Erro de validação",
+        description: "Email inválido. Verifique o endereço digitado.",
+        variant: "destructive",
+      });
+      isSubmittingRef.current = false;
+      return;
+    }
+    
+    isSubmittingRef.current = true;
     setLoading(true);
 
     try {
@@ -116,11 +156,12 @@ export function MunicipalityDialog({
       });
     } finally {
       setLoading(false);
+      isSubmittingRef.current = false;
     }
   };
 
   const handleArchive = async () => {
-    if (!municipality?.id) return;
+    if (!municipality?.id || loading) return;
     setLoading(true);
     try {
       const archivedNotePrefix = "[Arquivado] ";
@@ -148,7 +189,7 @@ export function MunicipalityDialog({
   };
 
   const handleDelete = async () => {
-    if (!municipality?.id) return;
+    if (!municipality?.id || loading) return;
     setLoading(true);
     try {
       const { error } = await supabase.from("municipalities").delete().eq("id", municipality.id);

@@ -44,8 +44,20 @@ const Programs = () => {
   const { permissions } = usePermissions();
 
   useEffect(() => {
-    loadMunicipalities();
-    loadPrograms();
+    let mounted = true;
+    
+    const loadData = async () => {
+      await loadMunicipalities();
+      if (mounted) {
+        await loadPrograms();
+      }
+    };
+    
+    loadData();
+    
+    return () => {
+      mounted = false;
+    };
   }, [filters]);
 
   const loadMunicipalities = async () => {

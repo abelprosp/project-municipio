@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -25,6 +25,7 @@ import {
   PlayCircle
 } from "lucide-react";
 import { useUserControl, UserTask, UserNotification } from "@/hooks/use-user-control";
+import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -46,6 +47,9 @@ export function UserControlPanel({ className }: UserControlPanelProps) {
     updateNotificationSettings,
     getUserStats
   } = useUserControl();
+  const { toast } = useToast();
+  const isSavingTaskRef = useRef(false);
+  const isCreatingTaskRef = useRef(false);
 
   const [newTaskDialogOpen, setNewTaskDialogOpen] = useState(false);
   const [editTaskDialogOpen, setEditTaskDialogOpen] = useState(false);
@@ -109,11 +113,23 @@ export function UserControlPanel({ className }: UserControlPanelProps) {
   };
 
   const handleSaveTask = async () => {
-    if (!editingTask) return;
+    if (!editingTask || isSavingTaskRef.current) return;
+    
+    // Validação básica
+    if (!editForm.title.trim()) {
+      toast({
+        title: "Erro de validação",
+        description: "O título da tarefa é obrigatório.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    isSavingTaskRef.current = true;
     try {
       const updates: any = {
-        title: editForm.title,
-        description: editForm.description,
+        title: editForm.title.trim(),
+        description: editForm.description.trim() || null,
         priority: editForm.priority,
         status: editForm.status,
         due_date: editForm.dueDate ? new Date(editForm.dueDate).toISOString() : null,
@@ -121,18 +137,41 @@ export function UserControlPanel({ className }: UserControlPanelProps) {
         assigned_to: editForm.assignedTo || null
       };
       await updateTask(editingTask.id, updates);
+      toast({
+        title: "Tarefa atualizada",
+        description: "A tarefa foi salva com sucesso.",
+      });
       setEditTaskDialogOpen(false);
       setEditingTask(null);
-    } catch (error) {
-      console.error("Erro ao salvar tarefa:", error);
+    } catch (error: any) {
+      toast({
+        title: "Erro ao salvar tarefa",
+        description: error.message || "Ocorreu um erro ao salvar a tarefa.",
+        variant: "destructive",
+      });
+    } finally {
+      isSavingTaskRef.current = false;
     }
   };
 
   const handleCreateTask = async () => {
+    if (isCreatingTaskRef.current) return;
+    
+    // Validação básica
+    if (!newTask.title.trim()) {
+      toast({
+        title: "Erro de validação",
+        description: "O título da tarefa é obrigatório.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    isCreatingTaskRef.current = true;
     try {
       await createTask(
-        newTask.title,
-        newTask.description,
+        newTask.title.trim(),
+        newTask.description.trim() || "",
         newTask.assignedTo || undefined,
         newTask.priority,
         newTask.dueDate || undefined,
@@ -140,6 +179,11 @@ export function UserControlPanel({ className }: UserControlPanelProps) {
         undefined, // relatedEntityId
         newTask.tags ? newTask.tags.split(",").map(tag => tag.trim()) : []
       );
+      
+      toast({
+        title: "Tarefa criada",
+        description: "A tarefa foi criada com sucesso.",
+      });
       
       setNewTask({
         title: "",
@@ -150,16 +194,30 @@ export function UserControlPanel({ className }: UserControlPanelProps) {
         assignedTo: ""
       });
       setNewTaskDialogOpen(false);
-    } catch (error) {
-      console.error("Erro ao criar tarefa:", error);
+    } catch (error: any) {
+      toast({
+        title: "Erro ao criar tarefa",
+        description: error.message || "Ocorreu um erro ao criar a tarefa.",
+        variant: "destructive",
+      });
+    } finally {
+      isCreatingTaskRef.current = false;
     }
   };
 
   const handleUpdateTaskStatus = async (taskId: string, status: UserTask['status']) => {
     try {
       await updateTask(taskId, { status });
-    } catch (error) {
-      console.error("Erro ao atualizar tarefa:", error);
+      toast({
+        title: "Status atualizado",
+        description: "O status da tarefa foi atualizado.",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Erro ao atualizar tarefa",
+        description: error.message || "Ocorreu um erro ao atualizar o status da tarefa.",
+        variant: "destructive",
+      });
     }
   };
 

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
 export interface UserActivity {
@@ -65,17 +65,38 @@ export function useUserControl() {
   const [notifications, setNotifications] = useState<UserNotification[]>([]);
   const [notificationSettings, setNotificationSettings] = useState<NotificationSettings | null>(null);
   const [loading, setLoading] = useState(true);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   // Carregar dados do usuário
   useEffect(() => {
     loadUserData();
+    
+    return () => {
+      // Cancelar requisição pendente ao desmontar
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
   }, []);
 
   const loadUserData = async () => {
+    // Cancelar requisição anterior se existir
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    
+    // Criar novo AbortController para esta requisição
+    const abortController = new AbortController();
+    abortControllerRef.current = abortController;
+    
     setLoading(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      if (!user || abortController.signal.aborted) {
+        if (abortController.signal.aborted) return;
+        setLoading(false);
+        return;
+      }
 
       const [activitiesRes, tasksRes, notificationsRes, settingsRes] = await Promise.all([
         supabase
@@ -105,14 +126,23 @@ export function useUserControl() {
           .single()
       ]);
 
+      // Verificar se a requisição foi cancelada antes de atualizar o estado
+      if (abortController.signal.aborted) return;
+
       setActivities(activitiesRes.data || []);
       setTasks(tasksRes.data || []);
       setNotifications(notificationsRes.data || []);
       setNotificationSettings(settingsRes.data);
-    } catch (error) {
+    } catch (error: any) {
+      // Ignorar erros de cancelamento
+      if (error.name === 'AbortError' || abortController.signal.aborted) {
+        return;
+      }
       console.error("Erro ao carregar dados do usuário:", error);
     } finally {
-      setLoading(false);
+      if (!abortController.signal.aborted) {
+        setLoading(false);
+      }
     }
   };
 

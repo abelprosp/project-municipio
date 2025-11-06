@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -21,6 +21,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { usePermissions } from "@/hooks/use-permissions";
+import { validateDate } from "@/lib/utils";
 
 interface Program {
   id?: string;
@@ -47,6 +48,7 @@ export function ProgramDialog({
   const { toast } = useToast();
   const { permissions } = usePermissions();
   const [loading, setLoading] = useState(false);
+  const isSubmittingRef = useRef(false);
   const [formData, setFormData] = useState<Program>(
     program || {
       name: "",
@@ -59,6 +61,23 @@ export function ProgramDialog({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Proteção contra múltiplas submissões
+    if (loading || isSubmittingRef.current) {
+      return;
+    }
+    
+    // Validações
+    if (formData.deadline && !validateDate(formData.deadline, true)) {
+      toast({
+        title: "Erro de validação",
+        description: "Data inválida. Verifique o prazo final digitado.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    isSubmittingRef.current = true;
     setLoading(true);
 
     try {
@@ -86,55 +105,77 @@ export function ProgramDialog({
         if (newProgram) {
           const { data: munis } = await supabase
             .from("municipalities")
-            .select("id, name");
+            .select("id, name")
+            .eq("receives_projects", true);
+          
           const year = new Date().getFullYear();
-          const pendingProjects = (munis || []).map((m) => ({
-            municipality_id: m.id,
-            program_id: newProgram.id,
-            year,
-            object: `Pendente — ${newProgram.name}`,
-            ministry: newProgram.responsible_agency,
-            transfer_amount: 0,
-            counterpart_amount: 0,
-            execution_percentage: 0,
-            status: "em_criacao",
-            start_date: null,
-            end_date: null,
-            accountability_date: null,
-            notes: "Criado automaticamente para acompanhamento do programa",
-          }));
-
-        if (pendingProjects.length) {
-          const { error: projErr } = await supabase
+          
+          // Verificar projetos existentes para evitar duplicatas
+          const { data: existingProjects } = await supabase
             .from("projects")
-            .insert(pendingProjects);
-          if (projErr) {
-            console.error("Erro ao criar pendências de municípios:", projErr.message);
-          }
-        }
+            .select("municipality_id")
+            .eq("program_id", newProgram.id)
+            .eq("year", year);
+          
+          const existingMunicipalityIds = new Set(
+            (existingProjects || []).map(p => p.municipality_id)
+          );
+          
+          // Criar apenas para municípios que ainda não têm projeto deste programa/ano
+          const pendingProjects = (munis || [])
+            .filter((m) => !existingMunicipalityIds.has(m.id))
+            .map((m) => ({
+              municipality_id: m.id,
+              program_id: newProgram.id,
+              year,
+              object: `Pendente — ${newProgram.name}`,
+              ministry: newProgram.responsible_agency,
+              transfer_amount: 0,
+              counterpart_amount: 0,
+              execution_percentage: 0,
+              status: "em_criacao",
+              start_date: null,
+              end_date: null,
+              accountability_date: null,
+              final_deadline: null,
+              notes: "Criado automaticamente para acompanhamento do programa",
+            }));
 
-        // Notificação sobre criação do programa e pendências geradas
-        try {
-          const { data: { user } } = await supabase.auth.getUser();
-          if (user) {
-            await supabase
-              .from("notifications")
-              .insert({
-                user_id: user.id,
-                title: "Programa cadastrado",
-                message: `\"${formData.name}\" criado. Pendências geradas para ${pendingProjects.length} municípios.`,
-                link: "/programs",
-                type: "success",
+          if (pendingProjects.length > 0) {
+            const { error: projErr } = await supabase
+              .from("projects")
+              .insert(pendingProjects);
+            if (projErr) {
+              toast({
+                title: "Aviso",
+                description: `Programa criado, mas houve erro ao criar algumas pendências: ${projErr.message}`,
+                variant: "destructive",
               });
+            }
           }
-        } catch {
-          // silencioso
-        }
+
+          // Notificação sobre criação do programa e pendências geradas
+          try {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (user) {
+              await supabase
+                .from("notifications")
+                .insert({
+                  user_id: user.id,
+                  title: "Programa cadastrado",
+                  message: `"${formData.name}" criado. ${pendingProjects.length > 0 ? `Pendências geradas para ${pendingProjects.length} municípios.` : "Nenhuma pendência criada (já existem projetos para todos os municípios)."}`,
+                  link: "/programs",
+                  type: "success",
+                });
+            }
+          } catch {
+            // silencioso
+          }
         }
 
         toast({
           title: "Programa cadastrado",
-          description: "O programa foi criado e pendências foram geradas para todos os municípios.",
+          description: "O programa foi criado com sucesso.",
         });
       }
 
@@ -148,11 +189,12 @@ export function ProgramDialog({
       });
     } finally {
       setLoading(false);
+      isSubmittingRef.current = false;
     }
   };
 
   const handleArchive = async () => {
-    if (!program?.id) return;
+    if (!program?.id || loading) return;
     setLoading(true);
     try {
       const { error } = await supabase
@@ -171,7 +213,7 @@ export function ProgramDialog({
   };
 
   const handleDelete = async () => {
-    if (!program?.id) return;
+    if (!program?.id || loading) return;
     setLoading(true);
     try {
       const { error } = await supabase.from("programs").delete().eq("id", program.id);
