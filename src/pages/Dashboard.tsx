@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -43,6 +44,7 @@ interface MunicipalityWithProjects {
 }
 
 const Dashboard = () => {
+  const navigate = useNavigate();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState({ municipality_id: "", program_id: "", ministry: "", status: "" });
@@ -703,7 +705,7 @@ const Dashboard = () => {
         },{
           title: "Execução Média", value: `${Math.round(stats?.avgExecution || 0)}%`, icon: <TrendingUp className="h-4 w-4" />, delta: 0, link: "/projects"
         }].map((kpi, idx) => (
-          <Card key={idx} className="border border-white/5 hover:-translate-y-0.5 transition-all hover:shadow-md cursor-pointer" onClick={() => window.location.href = kpi.link}>
+          <Card key={idx} className="border border-white/5 hover:-translate-y-0.5 transition-all hover:shadow-md cursor-pointer" onClick={() => navigate(kpi.link)}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium flex items-center gap-2">{kpi.icon}{kpi.title}</CardTitle>
               <span className={`text-xs ${kpi.delta >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>{kpi.delta >= 0 ? `↑ ${kpi.delta}%` : `↓ ${Math.abs(kpi.delta)}%`}</span>
