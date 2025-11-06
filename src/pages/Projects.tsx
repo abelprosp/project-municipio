@@ -156,6 +156,7 @@ const Projects = () => {
 
   const loadProjects = async () => {
     try {
+      // Tentar primeiro com select('*'), se falhar por causa de final_deadline, tentar sem ele
       let query = supabase
         .from("projects")
         .select(`*, municipalities(name), programs(name)`); // usa FKs
@@ -191,11 +192,15 @@ const Projects = () => {
       if (filters.to_date) {
         query = query.lte("created_at", `${filters.to_date}T23:59:59.999Z`);
       }
+      // Aplicar filtros de final_deadline apenas se o campo existir
+      let hasFinalDeadlineFilter = false;
       if (filters.end_date_from) {
         query = query.gte("final_deadline", filters.end_date_from);
+        hasFinalDeadlineFilter = true;
       }
       if (filters.end_date_to) {
         query = query.lte("final_deadline", filters.end_date_to);
+        hasFinalDeadlineFilter = true;
       }
 
       // Ordenação
@@ -208,9 +213,79 @@ const Projects = () => {
         query = query.order("created_at", { ascending: filters.sortOrder === "asc" });
       }
 
-      const { data, error } = await query;
+      let { data, error } = await query;
 
-      if (error) throw error;
+      // Se houver erro relacionado a final_deadline, tentar novamente sem esse filtro e sem select('*')
+      if (error && (error.message?.includes("final_deadline") || error.message?.includes("column") || error.code === "PGRST116" || error.message?.includes("Bad Request"))) {
+        // Refazer a query sem final_deadline (listando campos explicitamente)
+        query = supabase
+          .from("projects")
+          .select(`
+            id,
+            year,
+            proposal_number,
+            object,
+            ministry,
+            parliamentarian,
+            amendment_type,
+            transfer_amount,
+            counterpart_amount,
+            execution_percentage,
+            status,
+            municipality_id,
+            program_id,
+            start_date,
+            end_date,
+            accountability_date,
+            notes,
+            created_at,
+            updated_at,
+            municipalities(name),
+            programs(name)
+          `);
+
+        if (filters.municipality_id) {
+          query = query.eq("municipality_id", filters.municipality_id);
+        }
+        if (filters.program_id) {
+          query = query.eq("program_id", filters.program_id);
+        }
+        if (filters.ministry) {
+          query = query.ilike("ministry", `%${filters.ministry}%`);
+        }
+        
+        if (filters.status) {
+          if (filters.status === "__finalizados__") {
+            query = query.in("status", ["concluido", "cancelado"]);
+          } else if (filters.status !== "__all__") {
+            query = query.eq("status", filters.status);
+          }
+        } else {
+          query = query.not("status", "eq", "concluido").not("status", "eq", "cancelado");
+        }
+        
+        if (filters.from_date) {
+          query = query.gte("created_at", `${filters.from_date}T00:00:00.000Z`);
+        }
+        if (filters.to_date) {
+          query = query.lte("created_at", `${filters.to_date}T23:59:59.999Z`);
+        }
+        // Não aplicar filtros de final_deadline (campo não existe)
+
+        if (filters.sortBy === "end_date") {
+          query = query.order("end_date", { ascending: filters.sortOrder === "asc", nullsFirst: false });
+        } else if (filters.sortBy === "accountability_date") {
+          query = query.order("accountability_date", { ascending: filters.sortOrder === "asc", nullsFirst: false });
+        } else {
+          query = query.order("created_at", { ascending: filters.sortOrder === "asc" });
+        }
+
+        const retryResult = await query;
+        if (retryResult.error) throw retryResult.error;
+        data = retryResult.data;
+      } else if (error) {
+        throw error;
+      }
       setProjects(data || []);
     } catch (error: any) {
       toast({

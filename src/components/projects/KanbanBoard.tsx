@@ -98,12 +98,47 @@ export function KanbanBoard() {
 
   const loadProjectsAndMovements = async () => {
     try {
-      const { data: projectData, error: projectError } = await supabase
+      // Tentar buscar com todos os campos primeiro
+      let { data: projectData, error: projectError } = await supabase
         .from("projects")
         .select(`*, municipalities(name), programs(name, status)`) // relies on FK relations
         .order("created_at", { ascending: false });
 
-      if (projectError) throw projectError;
+      // Se houver erro relacionado a final_deadline ou coluna não encontrada, tentar sem ele
+      if (projectError && (projectError.message?.includes("final_deadline") || projectError.message?.includes("column") || projectError.code === "PGRST116" || projectError.message?.includes("Bad Request"))) {
+        // Refazer a query sem final_deadline (listando campos explicitamente)
+        const retryResult = await supabase
+          .from("projects")
+          .select(`
+            id,
+            object,
+            status,
+            end_date,
+            start_date,
+            accountability_date,
+            transfer_amount,
+            counterpart_amount,
+            execution_percentage,
+            municipality_id,
+            program_id,
+            year,
+            proposal_number,
+            ministry,
+            parliamentarian,
+            amendment_type,
+            notes,
+            created_at,
+            updated_at,
+            municipalities(name),
+            programs(name, status)
+          `)
+          .order("created_at", { ascending: false });
+        
+        if (retryResult.error) throw retryResult.error;
+        projectData = retryResult.data;
+      } else if (projectError) {
+        throw projectError;
+      }
       const casted = (projectData || []) as any[];
       const normalized: Project[] = casted.map((p) => ({
         id: p.id,
@@ -117,14 +152,27 @@ export function KanbanBoard() {
 
       const ids = normalized.map((p) => p.id);
       if (ids.length > 0) {
-        const { data: movementsData, error: movementsError } = await supabase
-          .from("movements")
-          .select("*")
-          .in("project_id", ids)
-          .order("date", { ascending: false });
+        // Se houver muitos IDs, dividir em lotes para evitar erro de query muito grande
+        const batchSize = 100;
+        const batches: string[][] = [];
+        for (let i = 0; i < ids.length; i += batchSize) {
+          batches.push(ids.slice(i, i + batchSize));
+        }
+        
+        const allMovements: Movement[] = [];
+        for (const batch of batches) {
+          const { data: movementsData, error: movementsError } = await supabase
+            .from("movements")
+            .select("*")
+            .in("project_id", batch)
+            .order("date", { ascending: false });
 
-        if (movementsError) throw movementsError;
-        setMovements((movementsData || []) as Movement[]);
+          if (movementsError) throw movementsError;
+          if (movementsData) {
+            allMovements.push(...(movementsData as Movement[]));
+          }
+        }
+        setMovements(allMovements);
       } else {
         setMovements([]);
       }
