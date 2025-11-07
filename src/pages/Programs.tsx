@@ -11,6 +11,7 @@ import { usePermissions } from "@/hooks/use-permissions";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { formatDateLocal } from "@/lib/utils";
 
 interface Program {
   id: string;
@@ -160,10 +161,7 @@ const Programs = () => {
     }
   };
 
-  const formatDate = (date: string | null) => {
-    if (!date) return "Sem prazo definido";
-    return new Date(date).toLocaleDateString("pt-BR");
-  };
+  const formatDate = (date: string | null) => formatDateLocal(date);
 
   if (loading) {
     return (

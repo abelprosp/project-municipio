@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { RefreshCw } from "lucide-react";
+import { formatDateLocal } from "@/lib/utils";
 
 type ProjectStatus =
   | "em_criacao"
@@ -36,11 +37,7 @@ interface TaskItem {
   object: string;
 }
 
-const formatDate = (date: string | null) => {
-  if (!date) return "Sem prazo definido";
-  const d = new Date(date);
-  return isNaN(d.getTime()) ? "Sem prazo definido" : d.toLocaleDateString("pt-BR");
-};
+const formatDate = (date: string | null) => formatDateLocal(date);
 
 const isSameDay = (isoDate?: string | null) => {
   if (!isoDate) return false;

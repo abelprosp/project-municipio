@@ -18,6 +18,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { generateProjectsListPdf, generateProjectPdfById } from "@/lib/pdf";
 import { exportProjectsToCsv, exportMovementsToCsv } from "@/lib/export";
 import { usePermissions } from "@/hooks/use-permissions";
+import { formatDateLocal } from "@/lib/utils";
 
 interface Project {
   id: string;
@@ -417,10 +418,7 @@ const Projects = () => {
     }).format(value);
   };
 
-  const formatDate = (date: string | null) => {
-    if (!date) return "Sem prazo definido";
-    return new Date(date).toLocaleDateString("pt-BR");
-  };
+  const formatDate = (date: string | null) => formatDateLocal(date);
 
   if (loading) {
     return (

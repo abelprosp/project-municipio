@@ -8,6 +8,7 @@ import { usePermissions } from "@/hooks/use-permissions";
 import { useUserControl } from "@/hooks/use-user-control";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { formatDateLocal } from "@/lib/utils";
 
 type AmendmentType = "extra" | "individual" | "rp2" | "outro";
 type ProjectStatus =
@@ -78,10 +79,7 @@ interface ProjectInfoDialogProps {
 }
 
 function formatDate(date: string | null | undefined) {
-  if (!date) return "—";
-  const d = new Date(date);
-  if (isNaN(d.getTime())) return "—";
-  return d.toLocaleDateString("pt-BR");
+  return formatDateLocal(date, "—");
 }
 
 export function ProjectInfoDialog({

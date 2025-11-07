@@ -1,6 +1,7 @@
 import jsPDF from "jspdf";
 import { supabase } from "@/integrations/supabase/client";
 import { buildDashboardReportData, buildProjectsReportData } from "@/lib/reporting/reporting";
+import { formatDateLocal } from "@/lib/utils";
 
 type MunicipalityWithProjects = {
   id: string;
@@ -60,14 +61,7 @@ const STATUS_LABEL: Record<string, string> = {
 const formatCurrencyBRL = (v: number) =>
   new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v);
 
-const formatDateBR = (date?: string | null) => {
-  if (!date) return "—";
-  try {
-    return new Intl.DateTimeFormat("pt-BR").format(new Date(date));
-  } catch {
-    return date as string;
-  }
-};
+const formatDateBR = (date?: string | null) => formatDateLocal(date ?? null, "—");
 
 // Função para adicionar cabeçalho estilizado
 const addStyledHeader = (doc: jsPDF, title: string, subtitle?: string) => {

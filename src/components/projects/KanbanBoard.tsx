@@ -12,6 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 import { FolderKanban, CalendarDays, User } from "lucide-react";
 import { ProjectDialog } from "@/components/projects/ProjectDialog";
 import ProjectInfoDialog from "@/components/projects/ProjectInfoDialog";
+import { formatDateLocal } from "@/lib/utils";
 
 type ProjectStatus =
   | "em_criacao"
@@ -202,12 +203,8 @@ export function KanbanBoard() {
   };
 
   const formatDate = (date?: string | null) => {
-    if (!date) return "—";
-    try {
-      return new Intl.DateTimeFormat("pt-BR").format(new Date(date));
-    } catch {
-      return date;
-    }
+    const formatted = formatDateLocal(date ?? null, "—");
+    return formatted;
   };
 
   const onDragStart = (id: string) => setDraggedId(id);

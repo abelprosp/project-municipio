@@ -4,6 +4,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { usePermissions } from "@/hooks/use-permissions";
+import { formatDateLocal } from "@/lib/utils";
 
 interface Program {
   id: string;
@@ -22,11 +23,7 @@ interface ProgramInfoDialogProps {
   onEdit?: () => void;
 }
 
-const formatDate = (date: string | null) => {
-  if (!date) return "Sem prazo definido";
-  const d = new Date(date);
-  return isNaN(d.getTime()) ? "Sem prazo definido" : d.toLocaleDateString("pt-BR");
-};
+const formatDate = (date: string | null) => formatDateLocal(date);
 
 export default function ProgramInfoDialog({ open, onOpenChange, program, onEdit }: ProgramInfoDialogProps) {
   const { permissions } = usePermissions();

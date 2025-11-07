@@ -1,5 +1,6 @@
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
+import { format, isValid, parseISO } from "date-fns";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -66,4 +67,23 @@ export function validateUF(uf: string): boolean {
   if (!uf) return false; // UF é obrigatório
   const ufRegex = /^[A-Z]{2}$/;
   return ufRegex.test(uf.toUpperCase());
+}
+
+export function formatDateLocal(
+  date: string | null | undefined,
+  fallback: string = "Sem prazo definido"
+): string {
+  if (!date || date.trim() === "") {
+    return fallback;
+  }
+
+  try {
+    const parsed = parseISO(date);
+    if (!isValid(parsed)) {
+      return fallback;
+    }
+    return format(parsed, "dd/MM/yyyy");
+  } catch (error) {
+    return fallback;
+  }
 }
