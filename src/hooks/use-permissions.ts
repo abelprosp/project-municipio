@@ -75,7 +75,7 @@ export function usePermissions() {
           isManager,
           isViewer,
           canManageMunicipalities: isAdmin,
-          canManagePrograms: isAdmin,
+          canManagePrograms: isAdmin || isManager,
           canManageProjects: isAdmin || isManager,
           roles,
         });

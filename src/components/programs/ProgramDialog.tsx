@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -11,6 +11,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Select,
   SelectContent,
@@ -30,7 +32,11 @@ interface Program {
   deadline: string | null;
   status: string;
   notes: string | null;
+  excluded_municipalities: string[];
 }
+
+const getErrorMessage = (error: unknown) =>
+  error instanceof Error ? error.message : String(error);
 
 interface ProgramDialogProps {
   open: boolean;
@@ -49,6 +55,7 @@ export function ProgramDialog({
   const { permissions } = usePermissions();
   const [loading, setLoading] = useState(false);
   const isSubmittingRef = useRef(false);
+  const [municipalities, setMunicipalities] = useState<{ id: string; name: string }[]>([]);
   const [formData, setFormData] = useState<Program>(
     program || {
       name: "",
@@ -56,8 +63,44 @@ export function ProgramDialog({
       deadline: "",
       status: "Aberto",
       notes: "",
+      excluded_municipalities: [],
     }
   );
+
+  useEffect(() => {
+    const fetchMunicipalities = async () => {
+      const { data } = await supabase
+        .from("municipalities")
+        .select("id, name")
+        .eq("receives_projects", true)
+        .order("name");
+      setMunicipalities(data ?? []);
+    };
+    fetchMunicipalities();
+  }, []);
+
+  useEffect(() => {
+    if (program) {
+      setFormData({
+        name: program.name,
+        responsible_agency: program.responsible_agency,
+        deadline: program.deadline,
+        status: program.status,
+        notes: program.notes,
+        id: program.id,
+        excluded_municipalities: program.excluded_municipalities || [],
+      });
+    } else {
+      setFormData({
+        name: "",
+        responsible_agency: "",
+        deadline: "",
+        status: "Aberto",
+        notes: "",
+        excluded_municipalities: [],
+      });
+    }
+  }, [program, open]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -103,10 +146,13 @@ export function ProgramDialog({
 
         const newProgram = createdPrograms?.[0];
         if (newProgram) {
-          const { data: munis } = await supabase
-            .from("municipalities")
-            .select("id, name")
-            .eq("receives_projects", true);
+          const fetchedMunicipalities =
+            municipalities.length > 0
+              ? municipalities
+              : (await supabase
+                  .from("municipalities")
+                  .select("id, name")
+                  .eq("receives_projects", true)).data || [];
           
           const year = new Date().getFullYear();
           
@@ -122,8 +168,10 @@ export function ProgramDialog({
           );
           
           // Criar apenas para municípios que ainda não têm projeto deste programa/ano
-          const pendingProjects = (munis || [])
-            .filter((m) => !existingMunicipalityIds.has(m.id))
+          const excluded = new Set(formData.excluded_municipalities || []);
+
+          const pendingProjects = fetchedMunicipalities
+            .filter((m) => !existingMunicipalityIds.has(m.id) && !excluded.has(m.id))
             .map((m) => ({
               municipality_id: m.id,
               program_id: newProgram.id,
@@ -181,10 +229,10 @@ export function ProgramDialog({
 
       onSuccess();
       onOpenChange(false);
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: "Erro ao salvar",
-        description: error.message,
+        description: getErrorMessage(error),
         variant: "destructive",
       });
     } finally {
@@ -205,8 +253,12 @@ export function ProgramDialog({
       toast({ title: "Programa arquivado", description: "Status alterado para Arquivado." });
       onSuccess();
       onOpenChange(false);
-    } catch (err: any) {
-      toast({ title: "Erro ao arquivar", description: err.message, variant: "destructive" });
+    } catch (error: unknown) {
+      toast({
+        title: "Erro ao arquivar",
+        description: getErrorMessage(error),
+        variant: "destructive",
+      });
     } finally {
       setLoading(false);
     }
@@ -221,8 +273,12 @@ export function ProgramDialog({
       toast({ title: "Programa excluído", description: "O registro foi removido." });
       onSuccess();
       onOpenChange(false);
-    } catch (err: any) {
-      toast({ title: "Erro ao excluir", description: err.message, variant: "destructive" });
+    } catch (error: unknown) {
+      toast({
+        title: "Erro ao excluir",
+        description: getErrorMessage(error),
+        variant: "destructive",
+      });
     } finally {
       setLoading(false);
     }
@@ -230,7 +286,7 @@ export function ProgramDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[600px]">
+      <DialogContent className="sm:max-w-[620px]">
         <DialogHeader>
           <DialogTitle>
             {program ? "Editar Programa" : "Novo Programa"}
@@ -240,7 +296,7 @@ export function ProgramDialog({
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit}>
-          <div className="grid gap-4 py-4">
+          <div className="grid gap-4 py-4 max-h-[70vh] overflow-y-auto pr-1">
             <div className="grid gap-2">
               <Label htmlFor="name">Nome *</Label>
               <Input
@@ -303,6 +359,50 @@ export function ProgramDialog({
                 }
                 rows={3}
               />
+            </div>
+            <div className="grid gap-2">
+              <Label>Municípios sem pendência automática</Label>
+              <ScrollArea className="h-48 border rounded">
+                <div className="p-3 space-y-2">
+                  {municipalities.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">Nenhum município disponível.</p>
+                  ) : (
+                    municipalities.map((municipality) => {
+                      const checked = formData.excluded_municipalities?.includes(municipality.id);
+                      return (
+                        <label
+                          key={municipality.id}
+                          htmlFor={`exclude-${municipality.id}`}
+                          className="flex items-center gap-2 text-sm"
+                        >
+                          <Checkbox
+                            id={`exclude-${municipality.id}`}
+                            checked={!!checked}
+                            onCheckedChange={(value) => {
+                              setFormData((prev) => {
+                                const current = new Set(prev.excluded_municipalities || []);
+                                if (value === true) {
+                                  current.add(municipality.id);
+                                } else if (value === false) {
+                                  current.delete(municipality.id);
+                                }
+                                return {
+                                  ...prev,
+                                  excluded_municipalities: Array.from(current),
+                                };
+                              });
+                            }}
+                          />
+                          {municipality.name}
+                        </label>
+                      );
+                    })
+                  )}
+                </div>
+              </ScrollArea>
+              <p className="text-xs text-muted-foreground">
+                Os municípios marcados não terão projetos pendentes criados automaticamente para este programa.
+              </p>
             </div>
           </div>
           <DialogFooter className="flex items-center justify-between gap-2">

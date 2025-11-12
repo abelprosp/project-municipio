@@ -139,6 +139,8 @@ export type Database = {
           email: string
           id: string
           name: string
+          full_name: string | null
+          phone: string | null
           updated_at: string
         }
         Insert: {
@@ -146,6 +148,8 @@ export type Database = {
           email: string
           id: string
           name: string
+          full_name?: string | null
+          phone?: string | null
           updated_at?: string
         }
         Update: {
@@ -153,6 +157,8 @@ export type Database = {
           email?: string
           id?: string
           name?: string
+          full_name?: string | null
+          phone?: string | null
           updated_at?: string
         }
         Relationships: []
@@ -161,6 +167,7 @@ export type Database = {
         Row: {
           created_at: string
           deadline: string | null
+          excluded_municipalities: string[] | null
           id: string
           name: string
           notes: string | null
@@ -171,6 +178,7 @@ export type Database = {
         Insert: {
           created_at?: string
           deadline?: string | null
+          excluded_municipalities?: string[] | null
           id?: string
           name: string
           notes?: string | null
@@ -181,6 +189,7 @@ export type Database = {
         Update: {
           created_at?: string
           deadline?: string | null
+          excluded_municipalities?: string[] | null
           id?: string
           name?: string
           notes?: string | null
@@ -305,6 +314,82 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "project_documents_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      project_bank_yields: {
+        Row: {
+          amount: number
+          created_at: string
+          created_by: string | null
+          description: string | null
+          event_date: string
+          id: string
+          project_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          event_date: string
+          id?: string
+          project_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          event_date?: string
+          id?: string
+          project_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_bank_yields_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      project_returns: {
+        Row: {
+          amount: number
+          created_at: string
+          created_by: string | null
+          description: string | null
+          event_date: string
+          id: string
+          project_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          event_date: string
+          id?: string
+          project_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          event_date?: string
+          id?: string
+          project_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_returns_project_id_fkey"
             columns: ["project_id"]
             isOneToOne: false
             referencedRelation: "projects"

@@ -20,6 +20,7 @@ interface Program {
   deadline: string | null;
   status: string;
   notes: string | null;
+  excluded_municipalities: string[] | null;
 }
 
 interface ProgramWithMunicipalities extends Program {

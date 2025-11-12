@@ -66,11 +66,20 @@ export function UserControlPanel({ className }: UserControlPanelProps) {
     assignedTo: ""
   });
 
-  const [users, setUsers] = useState<{ id: string; name: string; email: string }[]>([]);
+  const [users, setUsers] = useState<{ id: string; displayName: string }[]>([]);
   useEffect(() => {
     (async () => {
-      const { data } = await supabase.from("profiles").select("id, name, email").order("name");
-      setUsers(data || []);
+      const { data } = await supabase
+        .from("profiles")
+        .select("id, name, full_name, email")
+        .order("full_name", { ascending: true, nullsLast: true })
+        .order("name", { ascending: true, nullsLast: true });
+      const mapped =
+        data?.map((user) => ({
+          id: user.id,
+          displayName: user.full_name || user.name || user.email,
+        })) || [];
+      setUsers(mapped);
     })();
   }, []);
 
@@ -512,7 +521,7 @@ export function UserControlPanel({ className }: UserControlPanelProps) {
                           </SelectTrigger>
                           <SelectContent>
                             {users.map(u => (
-                              <SelectItem key={u.id} value={u.id}>{u.name || u.email}</SelectItem>
+                              <SelectItem key={u.id} value={u.id}>{u.displayName}</SelectItem>
                             ))}
                           </SelectContent>
                         </Select>
@@ -861,7 +870,7 @@ export function UserControlPanel({ className }: UserControlPanelProps) {
               </SelectTrigger>
               <SelectContent>
                 {users.map(u => (
-                  <SelectItem key={u.id} value={u.id}>{u.name || u.email}</SelectItem>
+                  <SelectItem key={u.id} value={u.id}>{u.displayName}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
