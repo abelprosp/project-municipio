@@ -43,6 +43,8 @@ const getStatusBadge = (status: string) => {
     em_criacao: "secondary",
     em_elaboracao: "outline",
     em_analise: "outline",
+    habilitada: "default",
+    selecionada: "default",
     em_complementacao: "outline",
     solicitado_documentacao: "outline",
     aguardando_documentacao: "outline",
@@ -51,13 +53,15 @@ const getStatusBadge = (status: string) => {
     em_execucao: "default",
     prestacao_contas: "secondary",
     concluido: "default",
-    cancelado: "destructive",
+    arquivada: "secondary",
   };
 
   const labels: Record<string, string> = {
     em_criacao: "Em Criação",
     em_elaboracao: "Em Elaboração",
     em_analise: "Em Análise",
+    habilitada: "Habilitada",
+    selecionada: "Selecionada",
     em_complementacao: "Em Complementação",
     solicitado_documentacao: "Solicitado Documentação",
     aguardando_documentacao: "Aguardando Documentação",
@@ -66,7 +70,7 @@ const getStatusBadge = (status: string) => {
     em_execucao: "Em Execução",
     prestacao_contas: "Prestação de Contas",
     concluido: "Concluído",
-    cancelado: "Cancelado",
+    arquivada: "Arquivada",
   };
 
   return <Badge variant={variants[status] || "default"}>{labels[status] || status}</Badge>;

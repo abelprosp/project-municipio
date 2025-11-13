@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Plus, LayoutList, KanbanSquare, FileText, History, Table as TableIcon, Activity, Building2 } from "lucide-react";
+import { Plus, LayoutList, KanbanSquare, FileText, History, Table as TableIcon, Activity, Building2, Pencil } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { ProjectDialog } from "@/components/projects/ProjectDialog";
 import { KanbanBoard } from "@/components/projects/KanbanBoard";
@@ -175,16 +175,16 @@ const Projects = () => {
       // Filtro de status
       if (filters.status) {
         if (filters.status === "__finalizados__") {
-          // Mostrar apenas finalizados/cancelados
-          query = query.in("status", ["concluido", "cancelado"]);
+        // Mostrar apenas finalizados/arquivados
+        query = query.in("status", ["concluido", "arquivada"]);
         } else if (filters.status !== "__all__") {
           // Status específico
           query = query.eq("status", filters.status);
         }
         // Se for "__all__", não aplicar filtro de status
       } else {
-        // Por padrão (sem filtro), excluir finalizados e cancelados
-        query = query.not("status", "eq", "concluido").not("status", "eq", "cancelado");
+        // Por padrão (sem filtro), excluir finalizados e arquivados
+        query = query.not("status", "eq", "concluido").not("status", "eq", "arquivada");
       }
       
       if (filters.from_date) {
@@ -257,12 +257,12 @@ const Projects = () => {
         
         if (filters.status) {
           if (filters.status === "__finalizados__") {
-            query = query.in("status", ["concluido", "cancelado"]);
+            query = query.in("status", ["concluido", "arquivada"]);
           } else if (filters.status !== "__all__") {
             query = query.eq("status", filters.status);
           }
         } else {
-          query = query.not("status", "eq", "concluido").not("status", "eq", "cancelado");
+          query = query.not("status", "eq", "concluido").not("status", "eq", "arquivada");
         }
         
         if (filters.from_date) {
@@ -378,6 +378,8 @@ const Projects = () => {
       em_criacao: "secondary",
       em_elaboracao: "outline",
       em_analise: "outline",
+      habilitada: "default",
+      selecionada: "default",
       em_complementacao: "outline",
       solicitado_documentacao: "outline",
       aguardando_documentacao: "outline",
@@ -386,13 +388,15 @@ const Projects = () => {
       em_execucao: "default",
       prestacao_contas: "secondary",
       concluido: "default",
-      cancelado: "destructive",
+      arquivada: "secondary",
     };
 
     const labels: Record<string, string> = {
       em_criacao: "Em Criação",
       em_elaboracao: "Em Elaboração",
       em_analise: "Em Análise",
+      habilitada: "Habilitada",
+      selecionada: "Selecionada",
       em_complementacao: "Em Complementação",
       solicitado_documentacao: "Solicitado Documentação",
       aguardando_documentacao: "Aguardando Documentação",
@@ -401,7 +405,7 @@ const Projects = () => {
       em_execucao: "Em Execução",
       prestacao_contas: "Prestação de Contas",
       concluido: "Concluído",
-      cancelado: "Cancelado",
+      arquivada: "Arquivada",
     };
 
     return (
@@ -542,7 +546,7 @@ const Projects = () => {
                 <SelectItem value="em_execucao">Em Execução</SelectItem>
                 <SelectItem value="prestacao_contas">Prestação de Contas</SelectItem>
                 <SelectItem value="concluido">Concluído</SelectItem>
-                <SelectItem value="cancelado">Cancelado</SelectItem>
+                <SelectItem value="arquivada">Arquivada</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -728,13 +732,45 @@ const Projects = () => {
                   </p>
                 )}
                 <div className="mt-4 flex items-center gap-2 flex-wrap">
+                  {permissions.canManageProjects && (
+                    <Button
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedProject(project);
+                        setDialogOpen(true);
+                      }}
+                      className="flex-shrink-0"
+                    >
+                      <Pencil className="mr-1 h-3 w-3" /> <span className="hidden sm:inline">Editar</span>
+                    </Button>
+                  )}
                   <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); openHistory(project); }} className="flex-shrink-0">
                     <History className="mr-1 h-3 w-3" /> <span className="hidden sm:inline">Histórico</span>
                   </Button>
                   <Button size="sm" variant="secondary" onClick={(e) => { e.stopPropagation(); openMunicipalityInfo(project); }} className="flex-shrink-0">
                     <Building2 className="mr-1 h-3 w-3" /> <span className="hidden sm:inline">Município</span>
                   </Button>
-                  <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); generateProjectPdfById(project.id); }} className="flex-shrink-0">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      openInfoDialog(project);
+                    }}
+                    className="flex-shrink-0"
+                  >
+                    <FileText className="mr-1 h-3 w-3" /> <span className="hidden sm:inline">Ver detalhes</span>
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      generateProjectPdfById(project.id);
+                    }}
+                    className="flex-shrink-0"
+                  >
                     <FileText className="mr-1 h-3 w-3" /> <span className="hidden sm:inline">Relatório (PDF)</span>
                   </Button>
                 </div>

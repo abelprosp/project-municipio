@@ -32,6 +32,8 @@ type ProjectStatus =
   | "em_criacao"
   | "em_elaboracao"
   | "em_analise"
+  | "habilitada"
+  | "selecionada"
   | "em_complementacao"
   | "solicitado_documentacao"
   | "aguardando_documentacao"
@@ -40,7 +42,7 @@ type ProjectStatus =
   | "em_execucao"
   | "prestacao_contas"
   | "concluido"
-  | "cancelado";
+  | "arquivada";
 
 interface Project {
   id?: string;
@@ -388,7 +390,7 @@ export function ProjectDialog({
     try {
       const { error } = await supabase
         .from("projects")
-        .update({ ...buildProjectPayload(formData), status: "cancelado" })
+        .update({ ...buildProjectPayload(formData), status: "arquivada" })
         .eq("id", project.id);
       if (error) throw error;
       toast({ title: "Projeto arquivado", description: "Status alterado para Cancelado." });
@@ -641,6 +643,8 @@ export function ProjectDialog({
                       <SelectItem value="em_criacao">Em Criação</SelectItem>
                       <SelectItem value="em_elaboracao">Em Elaboração</SelectItem>
                       <SelectItem value="em_analise">Em Análise</SelectItem>
+                      <SelectItem value="habilitada">Habilitada</SelectItem>
+                      <SelectItem value="selecionada">Selecionada</SelectItem>
                       <SelectItem value="em_complementacao">Em Complementação</SelectItem>
                       <SelectItem value="solicitado_documentacao">Solicitado Documentação</SelectItem>
                       <SelectItem value="aguardando_documentacao">Aguardando Documentação</SelectItem>
@@ -653,7 +657,7 @@ export function ProjectDialog({
                         Prestação de Contas
                       </SelectItem>
                       <SelectItem value="concluido">Concluído</SelectItem>
-                      <SelectItem value="cancelado">Cancelado</SelectItem>
+                      <SelectItem value="arquivada">Arquivada</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

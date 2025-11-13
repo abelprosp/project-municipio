@@ -1,13 +1,13 @@
-function toCsvValue(value: any): string {
+function toCsvValue(value: unknown): string {
   if (value === null || value === undefined) return "";
-  const str = String(value);
-  const needsQuotes = /[",\n;]/.test(str);
+  const str = typeof value === "number" ? value.toString().replace(".", ",") : String(value);
+  const needsQuotes = /[\";\n]/.test(str);
   const escaped = str.replace(/"/g, '""');
   return needsQuotes ? `"${escaped}"` : escaped;
 }
 
-function downloadCsv(filename: string, rows: string[][]) {
-  const csv = rows.map(r => r.map(toCsvValue).join(",")).join("\n");
+function downloadCsv(filename: string, rows: string[][], delimiter = ";") {
+  const csv = rows.map((r) => r.map(toCsvValue).join(delimiter)).join("\r\n");
   const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
@@ -23,33 +23,74 @@ export function exportProjectsToCsv(projects: any[]) {
   const headers = [
     "Município",
     "Ano",
+    "Programa",
     "Objeto",
-    "Status",
-    "Repasse",
-    "Contrapartida",
-    "Total",
-    "Execucao_%",
+    "Situação",
+    "Repasse (R$)",
+    "Contrapartida (R$)",
+    "Valor Total (R$)",
+    "Execução (%)",
+    "Início",
+    "Vigência (Fim)",
+    "Prestação de Contas",
   ];
   const rows: string[][] = [headers];
+
+  const formatCurrency = (value: number) =>
+    new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value);
+
+  const statusLabel: Record<string, string> = {
+    em_criacao: "Em Criação",
+    em_elaboracao: "Em Elaboração",
+    em_analise: "Em Análise",
+    habilitada: "Habilitada",
+    selecionada: "Selecionada",
+    em_complementacao: "Em Complementação",
+    solicitado_documentacao: "Solicitado Documentação",
+    aguardando_documentacao: "Aguardando Documentação",
+    clausula_suspensiva: "Cláusula Suspensiva",
+    aprovado: "Aprovado",
+    em_execucao: "Em Execução",
+    prestacao_contas: "Prestação de Contas",
+    concluido: "Concluído",
+    arquivada: "Arquivada",
+  };
+
+  const formatDate = (value: string | null | undefined) => {
+    if (!value) return "";
+    return new Intl.DateTimeFormat("pt-BR").format(new Date(value));
+  };
+
   for (const p of projects || []) {
-    const municipio = p.municipalities?.name || "—";
-    const ano = p.year ?? "";
-    const objeto = p.object || "";
-    const status = p.status || "";
-    const repasse = String(p.transfer_amount ?? 0);
-    const contrapartida = String(p.counterpart_amount ?? 0);
-    const total = String((Number(p.transfer_amount || 0) + Number(p.counterpart_amount || 0)).toFixed(2));
-    const exec = String(Number(p.execution_percentage || 0).toFixed(2));
-    rows.push([municipio, String(ano), objeto, status, repasse, contrapartida, total, exec]);
+    const repasse = Number(p.transfer_amount || 0);
+    const contrapartida = Number(p.counterpart_amount || 0);
+    const total = repasse + contrapartida;
+    const exec = Number(p.execution_percentage || 0);
+
+    rows.push([
+      p.municipalities?.name || "—",
+      String(p.year ?? ""),
+      p.programs?.name || "—",
+      p.object || "",
+      statusLabel[p.status] || p.status || "—",
+      formatCurrency(repasse),
+      formatCurrency(contrapartida),
+      formatCurrency(total),
+      exec.toFixed(2),
+      formatDate(p.start_date),
+      formatDate(p.end_date),
+      formatDate(p.accountability_date),
+    ]);
   }
-  downloadCsv("lista-projetos.csv", rows);
+
+  downloadCsv(`projetos-${new Date().toISOString().slice(0, 10)}.csv`, rows);
 }
 
 export function exportMovementsToCsv(movements: any[]) {
   const headers = ["Data", "Status", "Responsável", "Descrição"]; 
   const rows: string[][] = [headers];
   for (const m of movements || []) {
-    const data = m.date ? new Date(m.date).toISOString() : "";
+    const data = m.date ? new Intl.DateTimeFormat("pt-BR").format(new Date(m.date)) : "";
     const status = m.stage || "";
     const resp = m.responsible || "";
     const desc = m.description || "";
@@ -77,6 +118,8 @@ export async function exportDashboardToExcel(stats: {
       em_criacao: "Em Criação",
       em_elaboracao: "Em Elaboração",
       em_analise: "Em Análise",
+      habilitada: "Habilitada",
+      selecionada: "Selecionada",
       em_complementacao: "Em Complementação",
       solicitado_documentacao: "Solicitado Documentação",
       aguardando_documentacao: "Aguardando Documentação",
@@ -85,7 +128,7 @@ export async function exportDashboardToExcel(stats: {
       em_execucao: "Em Execução",
       prestacao_contas: "Prestação de Contas",
       concluido: "Concluído",
-      cancelado: "Cancelado",
+      arquivada: "Arquivada",
     };
     return labels[status] || status;
   };

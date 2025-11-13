@@ -397,6 +397,57 @@ export type Database = {
           },
         ]
       }
+      user_tasks: {
+        Row: {
+          assigned_to: string | null
+          completed_at: string | null
+          created_at: string
+          created_by: string
+          description: string | null
+          due_date: string | null
+          id: string
+          priority: "low" | "medium" | "high" | "urgent"
+          related_entity_id: string | null
+          related_entity_type: string | null
+          status: "pending" | "in_progress" | "completed" | "cancelled"
+          tags: string[]
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          assigned_to?: string | null
+          completed_at?: string | null
+          created_at?: string
+          created_by: string
+          description?: string | null
+          due_date?: string | null
+          id?: string
+          priority?: "low" | "medium" | "high" | "urgent"
+          related_entity_id?: string | null
+          related_entity_type?: string | null
+          status?: "pending" | "in_progress" | "completed" | "cancelled"
+          tags?: string[]
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          assigned_to?: string | null
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          due_date?: string | null
+          id?: string
+          priority?: "low" | "medium" | "high" | "urgent"
+          related_entity_id?: string | null
+          related_entity_type?: string | null
+          status?: "pending" | "in_progress" | "completed" | "cancelled"
+          tags?: string[]
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           assigned_at: string | null
@@ -441,12 +492,14 @@ export type Database = {
         | "em_criacao"
         | "em_elaboracao"
         | "em_analise"
+        | "habilitada"
+        | "selecionada"
         | "clausula_suspensiva"
         | "aprovado"
         | "em_execucao"
         | "prestacao_contas"
         | "concluido"
-        | "cancelado"
+        | "arquivada"
       user_role: "administrador" | "gestor_municipal" | "visualizador"
     }
     CompositeTypes: {
@@ -581,12 +634,14 @@ export const Constants = {
         "em_criacao",
         "em_elaboracao",
         "em_analise",
+        "habilitada",
+        "selecionada",
         "clausula_suspensiva",
         "aprovado",
         "em_execucao",
         "prestacao_contas",
         "concluido",
-        "cancelado",
+        "arquivada",
       ],
       user_role: ["administrador", "gestor_municipal", "visualizador"],
     },

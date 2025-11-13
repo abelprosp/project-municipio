@@ -33,6 +33,8 @@ type ProjectStatus =
   | "em_criacao"
   | "em_elaboracao"
   | "em_analise"
+  | "habilitada"
+  | "selecionada"
   | "em_complementacao"
   | "solicitado_documentacao"
   | "aguardando_documentacao"
@@ -41,7 +43,7 @@ type ProjectStatus =
   | "em_execucao"
   | "prestacao_contas"
   | "concluido"
-  | "cancelado";
+  | "arquivada";
 
 const STATUS_LABEL: Record<string, string> = {
   em_criacao: "Em Criação",
@@ -55,7 +57,9 @@ const STATUS_LABEL: Record<string, string> = {
   em_execucao: "Em Execução",
   prestacao_contas: "Prestação de Contas",
   concluido: "Concluído",
-  cancelado: "Cancelado",
+  habilitada: "Habilitada",
+  selecionada: "Selecionada",
+  arquivada: "Arquivada",
 };
 
 const formatCurrencyBRL = (v: number) =>
@@ -66,29 +70,45 @@ const formatDateBR = (date?: string | null) => formatDateLocal(date ?? null, "�
 // Função para adicionar cabeçalho estilizado
 const addStyledHeader = (doc: jsPDF, title: string, subtitle?: string) => {
   const pageWidth = doc.internal.pageSize.getWidth();
-  
+  const margin = 20;
+  const baseHeight = 40;
+
+  let subtitleLines: string[] = [];
+  if (subtitle) {
+    doc.setFontSize(12);
+    doc.setFont("helvetica", "normal");
+    subtitleLines = doc.splitTextToSize(subtitle, pageWidth - margin * 2);
+  }
+
+  const subtitleHeight = subtitleLines.length ? subtitleLines.length * 6 + 4 : 0;
+  const headerHeight = baseHeight + Math.max(0, subtitleHeight - 16);
+
   // Fundo colorido para o cabeçalho
   doc.setFillColor(59, 130, 246); // blue-500
-  doc.rect(0, 0, pageWidth, 40, 'F');
-  
+  doc.rect(0, 0, pageWidth, headerHeight, "F");
+
   // Título principal
   doc.setTextColor(255, 255, 255);
   doc.setFontSize(20);
   doc.setFont("helvetica", "bold");
-  doc.text(title, 20, 25);
-  
+  doc.text(title, margin, 22);
+
   // Subtítulo
-  if (subtitle) {
+  if (subtitleLines.length) {
     doc.setFontSize(12);
     doc.setFont("helvetica", "normal");
-    doc.text(subtitle, 20, 35);
+    subtitleLines.forEach((line, idx) => {
+      doc.text(line, margin, 32 + idx * 6);
+    });
   }
-  
+
   // Data de emissão
   doc.setFontSize(10);
-  doc.text(`Emitido em: ${new Date().toLocaleString("pt-BR")}`, pageWidth - 20, 35, { align: "right" });
-  
-  return 50; // Retorna a posição Y para continuar o conteúdo
+  doc.text(`Emitido em: ${new Date().toLocaleString("pt-BR")}`, pageWidth - margin, headerHeight - 8, {
+    align: "right",
+  });
+
+  return headerHeight + 12; // Retorna a posição Y para continuar o conteúdo
 };
 
 // Função para adicionar seção com título
@@ -202,9 +222,11 @@ export async function generateDashboardPdf(stats: DashboardStats) {
     em_execucao: [31, 64, 223],
     em_elaboracao: [34, 197, 94],
     em_analise: [249, 115, 22],
+    habilitada: [56, 189, 248],
+    selecionada: [252, 165, 3],
     em_complementacao: [249, 115, 22],
     aprovado: [59, 130, 246],
-    cancelado: [148, 163, 184],
+    arquivada: [148, 163, 184],
     concluido: [16, 185, 129],
     aguardando_documentacao: [14, 165, 233],
     solicitado_documentacao: [56, 189, 248],
@@ -251,7 +273,10 @@ export async function generateDashboardPdf(stats: DashboardStats) {
   const sortedMunicipalities = (stats.municipalities || []).sort((a, b) => a.name.localeCompare(b.name));
 
   for (const mun of sortedMunicipalities) {
-    if (y > 250) {
+    const nameLines = doc.splitTextToSize(mun.name, 160);
+    const requiredHeight = nameLines.length * 6 + 20;
+
+    if (y + requiredHeight > 250) {
       doc.addPage();
       y = addStyledHeader(doc, "Relatório Geral", "Dashboard de Convênios e Projetos");
       y = addSection(doc, "Quadro de Municípios (cont.)", y);
@@ -261,8 +286,10 @@ export async function generateDashboardPdf(stats: DashboardStats) {
     doc.setFont("helvetica", "bold");
     doc.setFontSize(11);
     doc.setTextColor(0, 0, 0);
-    doc.text(mun.name, 20, y);
-    y += 6;
+    nameLines.forEach((line, idx) => {
+      doc.text(line, 20, y + idx * 6);
+    });
+    y += nameLines.length * 6;
 
     // Estatísticas do município
     doc.setFont("helvetica", "normal");
@@ -276,7 +303,10 @@ export async function generateDashboardPdf(stats: DashboardStats) {
     const projectsToShow = mun.projects.slice(0, 5);
     doc.setFontSize(8);
     for (const proj of projectsToShow) {
-      if (y > 250) {
+      const projectText = doc.splitTextToSize(proj.object || "—", 110);
+      const blockHeight = projectText.length * 5 + 5;
+
+      if (y + blockHeight > 250) {
         doc.addPage();
         y = addStyledHeader(doc, "Relatório Geral", "Dashboard de Convênios e Projetos");
         y = addSection(doc, "Quadro de Municípios (cont.)", y);
@@ -287,10 +317,16 @@ export async function generateDashboardPdf(stats: DashboardStats) {
         doc.setFont("helvetica", "normal");
         doc.setFontSize(8);
       }
-      const projText = (proj.object || "—").length > 40 ? (proj.object || "—").substring(0, 37) + "..." : (proj.object || "—");
-      doc.text(`  • ${projText}`, 25, y);
-      doc.text(`(${STATUS_LABEL[proj.status as ProjectStatus] || proj.status})`, 140, y);
-      y += 5;
+
+      projectText.forEach((line, idx) => {
+        doc.text(`${idx === 0 ? "  • " : "    "}${line}`, 25, y + idx * 5);
+      });
+      doc.text(
+        `(${STATUS_LABEL[proj.status as ProjectStatus] || proj.status})`,
+        140,
+        y
+      );
+      y += blockHeight;
     }
     if (mun.projects.length > 5) {
       doc.text(`  ... e mais ${mun.projects.length - 5} projeto(s)`, 25, y);
@@ -367,17 +403,29 @@ export async function generateProjectPdfById(projectId: string, opts?: { from?: 
   const { data: tasks } = await tasksQuery;
 
   const doc = new jsPDF();
-  const subtitle = opts?.from || opts?.to
-    ? `Período: ${opts?.from ? formatDateBR(opts.from) : "—"} a ${opts?.to ? formatDateBR(opts.to) : "—"}`
-    : project.object || "Projeto";
+  const subtitle =
+    opts?.from || opts?.to
+      ? `Período: ${opts?.from ? formatDateBR(opts.from) : "—"} a ${opts?.to ? formatDateBR(opts.to) : "—"}`
+      : project.object || "Projeto";
   let y = addStyledHeader(doc, "Relatório do Projeto", subtitle);
+  const bottomLimit = doc.internal.pageSize.getHeight() - 25;
+  const lineHeight = 5;
+
+  const ensureSpace = (height: number, headerTitle?: string) => {
+    if (y + height <= bottomLimit) return;
+    doc.addPage();
+    y = addStyledHeader(doc, "Relatório do Projeto", project.object || "Projeto");
+    if (headerTitle) {
+      y = addSection(doc, headerTitle, y);
+    }
+  };
 
   // Informações principais do projeto
   y = addSection(doc, "Dados do Projeto", y);
-  
+
   doc.setFontSize(11);
   doc.setFont("helvetica", "normal");
-  
+
   const projectData = [
     { label: "Objeto", value: project.object || "—" },
     { label: "Município", value: project.municipalities?.name || "—" },
@@ -389,17 +437,17 @@ export async function generateProjectPdfById(projectId: string, opts?: { from?: 
   ];
 
   for (const item of projectData) {
-    if (y > 250) {
-      doc.addPage();
-      y = addStyledHeader(doc, "Relatório do Projeto", project.object || "Projeto");
-      y += 20;
-    }
-    
+    const valueLines = doc.splitTextToSize(item.value, 110);
+    const blockHeight = Math.max(8, valueLines.length * lineHeight + 2);
+    ensureSpace(blockHeight + 4);
+
     doc.setFont("helvetica", "bold");
     doc.text(`${item.label}:`, 20, y);
     doc.setFont("helvetica", "normal");
-    doc.text(item.value, 60, y);
-    y += 8;
+    valueLines.forEach((line, idx) => {
+      doc.text(line, 60, y + idx * lineHeight);
+    });
+    y += blockHeight;
   }
 
   // Valores financeiros em cards
@@ -423,7 +471,7 @@ export async function generateProjectPdfById(projectId: string, opts?: { from?: 
   // Datas importantes
   y += 20;
   y = addSection(doc, "Cronograma", y);
-  
+
   const dates = [
     { label: "Início", value: formatDateBR(project.start_date) },
     { label: "Término", value: formatDateBR(project.end_date) },
@@ -438,36 +486,28 @@ export async function generateProjectPdfById(projectId: string, opts?: { from?: 
   }
 
   for (const date of dates) {
-    if (y > 250) {
-      doc.addPage();
-      y = addStyledHeader(doc, "Relatório do Projeto", project.object || "Projeto");
-      y += 20;
-    }
-    
+    ensureSpace(lineHeight + 4);
+
     doc.setFont("helvetica", "bold");
     doc.text(`${date.label}:`, 20, y);
     doc.setFont("helvetica", "normal");
     doc.text(date.value, 60, y);
-    y += 8;
+    y += lineHeight + 4;
   }
 
   // Observações
   if (project.notes) {
     y += 10;
     y = addSection(doc, "Observações", y);
-    
+
     doc.setFontSize(10);
     doc.setFont("helvetica", "normal");
     const notes = `Observações: ${project.notes}`;
     const split = doc.splitTextToSize(notes, 170);
     for (const line of split) {
-      if (y > 250) {
-        doc.addPage();
-        y = addStyledHeader(doc, "Relatório do Projeto", project.object || "Projeto");
-        y += 20;
-      }
+      ensureSpace(lineHeight);
       doc.text(line, 20, y);
-      y += 6;
+      y += lineHeight + 1;
     }
   }
 
@@ -475,17 +515,12 @@ export async function generateProjectPdfById(projectId: string, opts?: { from?: 
   if (movements && movements.length > 0) {
     y += 15;
     y = addSection(doc, "Acompanhamento", y);
-    
+
     doc.setFontSize(10);
     doc.setFont("helvetica", "normal");
-    
     for (const m of movements) {
-      if (y > 250) {
-        doc.addPage();
-        y = addStyledHeader(doc, "Relatório do Projeto", project.object || "Projeto");
-        y += 20;
-      }
-      
+      ensureSpace(lineHeight * 2 + 6);
+
       // Data e status
       doc.setFont("helvetica", "bold");
       doc.text(`${formatDateBR(m.date)} — ${STATUS_LABEL[m.stage as ProjectStatus] || m.stage}`, 20, y);
@@ -495,19 +530,15 @@ export async function generateProjectPdfById(projectId: string, opts?: { from?: 
         y += 6;
       }
       y += 6;
-      
+
       // Descrição
       if (m.description) {
         doc.setFont("helvetica", "normal");
         const split = doc.splitTextToSize(m.description, 170);
         for (const line of split) {
-          if (y > 250) {
-            doc.addPage();
-            y = addStyledHeader(doc, "Relatório do Projeto", project.object || "Projeto");
-            y += 20;
-          }
+          ensureSpace(lineHeight);
           doc.text(line, 30, y);
-          y += 6;
+          y += lineHeight + 1;
         }
       }
       y += 8;
@@ -522,39 +553,36 @@ export async function generateProjectPdfById(projectId: string, opts?: { from?: 
     doc.setFont("helvetica", "normal");
 
     // Cabeçalho das colunas
-    doc.setFont("helvetica", "bold");
-    doc.text("Título", 20, y);
-    doc.text("Status", 120, y);
-    doc.text("Prazo", 160, y);
-    y += 8;
-    doc.setFont("helvetica", "normal");
+    const drawTaskHeader = () => {
+      doc.setFont("helvetica", "bold");
+      doc.text("Título", 20, y);
+      doc.text("Status", 120, y);
+      doc.text("Prazo", 160, y);
+      y += 8;
+      doc.setFont("helvetica", "normal");
+    };
+
+    drawTaskHeader();
 
     for (const t of tasks) {
-      if (y > 270) {
-        doc.addPage();
-        y = addStyledHeader(doc, "Relatório do Projeto", subtitle);
-        y += 10;
-        doc.setFont("helvetica", "bold");
-        doc.text("Título", 20, y);
-        doc.text("Status", 120, y);
-        doc.text("Prazo", 160, y);
-        y += 8;
-        doc.setFont("helvetica", "normal");
-      }
-
       const title = String(t.title || "—");
       const status = String(t.status || "—");
       const due = t.due_date ? formatDateBR(t.due_date) : "—";
 
-      // Título com quebra se longo
       const titleLines = doc.splitTextToSize(title, 90);
+      const rowHeight = Math.max(8, titleLines.length * lineHeight + 2);
+
+      if (y + rowHeight > bottomLimit) {
+        doc.addPage();
+        y = addStyledHeader(doc, "Relatório do Projeto", subtitle);
+        y = addSection(doc, "Tarefas", y);
+        drawTaskHeader();
+      }
+
       doc.text(titleLines, 20, y);
-      // Status e Prazo na mesma linha base
       doc.text(status, 120, y);
       doc.text(due, 160, y);
-
-      // Avança Y pelo número de linhas do título
-      y += Math.max(8, titleLines.length * 6);
+      y += rowHeight + 4;
     }
   }
 
@@ -613,59 +641,82 @@ export async function generateProjectsListPdf(projects: any[]) {
   const pageHeight = doc.internal.pageSize.getHeight();
   const bottomLimit = pageHeight - 25; // margem inferior
 
-  const drawTableHeader = () => {
-    doc.setFontSize(9);
-    doc.setFont("helvetica", "bold");
-    doc.setTextColor(0, 0, 0);
-    doc.setFillColor(241, 245, 249);
-    doc.rect(10, y, 190, 12, 'F');
-    doc.text("Município", 15, y + 8);
-    doc.text("Ano", 50, y + 8);
-    doc.text("Objeto", 65, y + 8);
-    doc.text("Status", 120, y + 8);
-    doc.text("Valor Total", 150, y + 8);
-    doc.text("Exec.%", 175, y + 8);
-    y += 15;
-    doc.setFont("helvetica", "normal");
+  const renderProjectsRows = (rows: typeof projects) => {
+    const lineHeight = 5;
+    const columns = [
+      { x: 15, width: 35, align: "left" as const },
+      { x: 52, width: 12, align: "left" as const },
+      { x: 70, width: 45, align: "left" as const },
+      { x: 118, width: 25, align: "left" as const },
+      { x: 150, width: 27, align: "right" as const },
+      { x: 180, width: 18, align: "right" as const },
+    ];
+
+    const drawTableHeader = () => {
+      doc.setFontSize(9);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(0, 0, 0);
+      doc.setFillColor(241, 245, 249);
+      doc.rect(10, y, 190, 12, "F");
+      doc.text("Município", columns[0].x, y + 8);
+      doc.text("Ano", columns[1].x, y + 8);
+      doc.text("Objeto", columns[2].x, y + 8);
+      doc.text("Status", columns[3].x, y + 8);
+      doc.text("Valor Total", columns[4].x + columns[4].width, y + 8, { align: "right" });
+      doc.text("Exec.%", columns[5].x + columns[5].width, y + 8, { align: "right" });
+      y += 15;
+      doc.setFont("helvetica", "normal");
+    };
+
+    drawTableHeader();
+
+    for (const p of rows) {
+      const values = [
+        p.municipalities?.name || "—",
+        String(p.year ?? "—"),
+        String(p.object || "—"),
+        STATUS_LABEL[p.status as string] || String(p.status || "—"),
+        formatCurrencyBRL(Number(p.transfer_amount || 0) + Number(p.counterpart_amount || 0)),
+        `${Number(p.execution_percentage || 0).toFixed(1)}%`,
+      ];
+
+      const wrapped = values.map((text, index) =>
+        doc.splitTextToSize(text, columns[index].width)
+      );
+
+      const maxLines = Math.max(...wrapped.map((lines) => lines.length));
+      const rowHeight = Math.max(10, maxLines * lineHeight + 4);
+
+      if (y + rowHeight > bottomLimit) {
+        doc.addPage();
+        y = addStyledHeader(doc, "Lista de Projetos", `${projects.length} projetos encontrados`);
+        y += 10;
+        drawTableHeader();
+      }
+
+      doc.setFillColor(255, 255, 255);
+      doc.rect(10, y - 3, 190, rowHeight, "F");
+      doc.setDrawColor(226, 232, 240);
+      doc.setLineWidth(0.3);
+      doc.line(10, y + rowHeight - 3, 200, y + rowHeight - 3);
+
+      wrapped.forEach((lines, colIndex) => {
+        lines.forEach((line, lineIndex) => {
+          const textY = y + 2 + lineIndex * lineHeight;
+          const col = columns[colIndex];
+          if (col.align === "right") {
+            doc.text(line, col.x + col.width, textY, { align: "right" });
+          } else {
+            doc.text(line, col.x, textY);
+          }
+        });
+      });
+
+      y += rowHeight;
+    }
   };
 
-  drawTableHeader();
-  let linesDrawnOnPage = 0;
-  for (const p of projects) {
-    const mun = p.municipalities?.name || "—";
-    const ano = p.year ?? "—";
-    const obj = String(p.object || "—");
-    const status = STATUS_LABEL[p.status as string] || String(p.status || "—");
-    const total = formatCurrencyBRL(Number(p.transfer_amount || 0) + Number(p.counterpart_amount || 0));
-    const exec = `${Number(p.execution_percentage || 0)}%`;
-
-    const rowHeight = 10;
-    if (y + rowHeight > bottomLimit) {
-      // evita página vazia: só quebra se há itens restantes
-      doc.addPage();
-      y = addStyledHeader(doc, "Lista de Projetos", `${projects.length} projetos encontrados`);
-      y += 10;
-      drawTableHeader();
-      linesDrawnOnPage = 0;
-    }
-
-    // Linha
-    doc.setTextColor(0, 0, 0);
-    doc.setFillColor(255, 255, 255);
-    doc.rect(10, y - 3, 190, rowHeight, 'F');
-    doc.setDrawColor(226, 232, 240);
-    doc.setLineWidth(0.3);
-    doc.line(10, y + 7, 200, y + 7);
-
-    doc.text(mun.length > 15 ? mun.substring(0, 15) + "..." : mun, 15, y + 2);
-    doc.text(String(ano), 50, y + 2);
-    doc.text(obj.length > 20 ? obj.substring(0, 20) + "..." : obj, 65, y + 2);
-    doc.text(status.length > 12 ? status.substring(0, 12) + "..." : status, 120, y + 2);
-    doc.text(total, 150, y + 2);
-    doc.text(exec, 175, y + 2);
-    y += rowHeight;
-    linesDrawnOnPage++;
-  }
+  renderProjectsRows(projects);
 
   // Rodapé (reutiliza pageHeight definido acima)
   doc.setFillColor(59, 130, 246);
@@ -677,7 +728,401 @@ export async function generateProjectsListPdf(projects: any[]) {
   doc.save("relatorio-lista-projetos.pdf");
 }
 
+export async function generateMunicipalityPdf(options: { municipalityId?: string } = {}) {
+  const data = await buildDashboardReportData();
+  const selectedMunicipalities = options.municipalityId
+    ? data.municipalities.filter((mun) => mun.id === options.municipalityId)
+    : data.municipalities;
+
+  if (!selectedMunicipalities.length) {
+    const docEmpty = new jsPDF();
+    let yEmpty = addStyledHeader(docEmpty, "Relatório por Município", "Nenhum município encontrado");
+    docEmpty.setFont("helvetica", "normal");
+    docEmpty.setTextColor(0, 0, 0);
+    docEmpty.text("Não foram encontrados municípios para gerar o relatório.", 20, yEmpty + 10);
+    const filename = options.municipalityId ? "municipio-nao-encontrado.pdf" : "relatorio-municipios.pdf";
+    docEmpty.save(filename);
+    return;
+  }
+
+  const doc = new jsPDF();
+
+  selectedMunicipalities.forEach((municipality, index) => {
+    if (index > 0) {
+      doc.addPage();
+    }
+
+    let y = addStyledHeader(doc, "Relatório do Município", municipality.name);
+    y = addSection(doc, "Resumo Executivo", y);
+
+    const cardWidth = 55;
+    const cardSpacing = 60;
+    const startX = 15;
+
+    y = addStatCard(doc, "Projetos cadastrados", municipality.totalProjects.toString(), startX, y, cardWidth);
+    y = addStatCard(doc, "Valor total contratado", formatCurrencyBRL(municipality.totalAmount), startX + cardSpacing, y - 30, cardWidth);
+    y += 5;
+    y = addStatCard(
+      doc,
+      "Execução média",
+      `${Number(municipality.avgExecution || 0).toFixed(1)}%`,
+      startX,
+      y,
+      cardWidth
+    );
+    y += 20;
+
+    y = addSection(doc, "Projetos do município", y);
+
+    if (!municipality.projects.length) {
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(71, 85, 105);
+      doc.text("Não há projetos associados a este município.", 20, y + 6);
+      return;
+    }
+
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const bottomLimit = pageHeight - 25;
+
+    const renderMunicipalityRows = (rows: typeof municipality.projects) => {
+      const lineHeight = 5;
+      const columns = [
+        { x: 15, width: 75, align: "left" as const },
+        { x: 95, width: 12, align: "left" as const },
+        { x: 112, width: 28, align: "left" as const },
+        { x: 150, width: 30, align: "right" as const },
+        { x: 182, width: 16, align: "right" as const },
+      ];
+
+      const drawHeaders = (title?: string) => {
+        doc.setFontSize(9);
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(0, 0, 0);
+        doc.setFillColor(241, 245, 249);
+        doc.rect(10, y, 190, 12, "F");
+        if (title) {
+          doc.text(title, 15, y - 4);
+        }
+        doc.text("Objeto", columns[0].x, y + 8);
+        doc.text("Ano", columns[1].x, y + 8);
+        doc.text("Situação", columns[2].x, y + 8);
+        doc.text("Valor (R$)", columns[3].x + columns[3].width, y + 8, { align: "right" });
+        doc.text("Exec.%", columns[4].x + columns[4].width, y + 8, { align: "right" });
+        y += 15;
+        doc.setFont("helvetica", "normal");
+        doc.setTextColor(0, 0, 0);
+      };
+
+      drawHeaders();
+
+      for (const project of rows) {
+        const totalValue = project.transfer_amount + project.counterpart_amount;
+        const values = [
+          project.object || "—",
+          String(project.year ?? "—"),
+          STATUS_LABEL[project.status] || project.status,
+          formatCurrencyBRL(totalValue),
+          `${Number(project.execution_percentage || 0).toFixed(1)}%`,
+        ];
+
+        const wrapped = values.map((text, index) =>
+          doc.splitTextToSize(text, columns[index].width)
+        );
+        const maxLines = Math.max(...wrapped.map((lines) => lines.length));
+        const rowHeight = Math.max(10, maxLines * lineHeight + 4);
+
+        if (y + rowHeight > bottomLimit) {
+          doc.addPage();
+          y = addStyledHeader(doc, "Relatório do Município", municipality.name);
+          y = addSection(doc, "Projetos do município (continuação)", y);
+          drawHeaders("Projetos do município (continuação)");
+        }
+
+        doc.setFillColor(255, 255, 255);
+        doc.rect(10, y - 3, 190, rowHeight, "F");
+        doc.setDrawColor(226, 232, 240);
+        doc.setLineWidth(0.3);
+        doc.line(10, y + rowHeight - 3, 200, y + rowHeight - 3);
+
+        wrapped.forEach((lines, colIndex) => {
+          lines.forEach((line, lineIndex) => {
+            const textY = y + 2 + lineIndex * lineHeight;
+            const col = columns[colIndex];
+            if (col.align === "right") {
+              doc.text(line, col.x + col.width, textY, { align: "right" });
+            } else {
+              doc.text(line, col.x, textY);
+            }
+          });
+        });
+
+        y += rowHeight;
+      }
+    };
+
+    renderMunicipalityRows(municipality.projects);
+  });
+
+  const fileName = (() => {
+    if (options.municipalityId && selectedMunicipalities[0]) {
+      return `relatorio-municipio-${selectedMunicipalities[0].name.replace(/[^a-z0-9_-]+/gi, "_")}.pdf`;
+    }
+    return "relatorio-municipios.pdf";
+  })();
+
+  doc.save(fileName);
+}
+
 export async function createProjectsPdf(filters?: { from?: string; to?: string; status?: string }) {
   const { projects } = await buildProjectsReportData(filters);
   await generateProjectsListPdf(projects);
+}
+
+export async function generateProgramPdf(programId: string) {
+  const { data: program, error: programError } = await supabase
+    .from("programs")
+    .select("*")
+    .eq("id", programId)
+    .single();
+
+  if (programError || !program) {
+    throw programError || new Error("Programa não encontrado");
+  }
+
+  const { data: projects, error: projectsError } = await supabase
+    .from("projects")
+    .select("id, object, status, year, transfer_amount, counterpart_amount, execution_percentage, municipalities(name)")
+    .eq("program_id", programId)
+    .order("year", { ascending: false });
+
+  if (projectsError) {
+    throw projectsError;
+  }
+
+  let excludedNames: string[] = [];
+  if (program.excluded_municipalities && program.excluded_municipalities.length > 0) {
+    const { data: excludedData } = await supabase
+      .from("municipalities")
+      .select("id, name")
+      .in("id", program.excluded_municipalities as string[]);
+    excludedNames = (excludedData || []).map((m: any) => m.name).filter(Boolean);
+  }
+
+  const totalAmount = (projects || []).reduce(
+    (sum, proj: any) =>
+      sum + Number(proj.transfer_amount || 0) + Number(proj.counterpart_amount || 0),
+    0
+  );
+  const avgExecution =
+    (projects || []).length > 0
+      ? (projects as any[]).reduce(
+          (sum, proj) => sum + Number(proj.execution_percentage || 0),
+          0
+        ) / (projects as any[]).length
+      : 0;
+
+  const municipalitiesCovered = Array.from(
+    new Set(
+      (projects || [])
+        .map((proj: any) => proj.municipalities?.name)
+        .filter(Boolean)
+    )
+  );
+
+  const doc = new jsPDF();
+  let y = addStyledHeader(doc, "Relatório do Programa", program.name);
+  const bottomLimit = doc.internal.pageSize.getHeight() - 25;
+  const lineHeight = 5;
+
+  const ensureSpace = (height: number, headerTitle?: string) => {
+    if (y + height <= bottomLimit) return;
+    doc.addPage();
+    y = addStyledHeader(doc, "Relatório do Programa", program.name);
+    if (headerTitle) {
+      y = addSection(doc, headerTitle, y);
+    }
+  };
+
+  // Informações gerais
+  y = addSection(doc, "Informações do Programa", y);
+  const infoRows = [
+    { label: "Nome", value: program.name || "—" },
+    { label: "Status", value: program.status || "—" },
+    { label: "Órgão Responsável", value: program.responsible_agency || "—" },
+    { label: "Prazo", value: formatDateLocal(program.deadline, "—") },
+  ];
+
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(11);
+
+  for (const row of infoRows) {
+    const valueLines = doc.splitTextToSize(row.value, 130);
+    const blockHeight = Math.max(8, valueLines.length * lineHeight + 2);
+    ensureSpace(blockHeight + 4);
+
+    doc.setFont("helvetica", "bold");
+    doc.text(`${row.label}:`, 20, y);
+    doc.setFont("helvetica", "normal");
+    valueLines.forEach((line, idx) => {
+      doc.text(line, 70, y + idx * lineHeight);
+    });
+    y += blockHeight;
+  }
+
+  if (program.notes) {
+    const obsLines = doc.splitTextToSize(program.notes, 170);
+    const obsHeight = obsLines.length * lineHeight + 6;
+    ensureSpace(obsHeight + 4, "Informações do Programa");
+    y += 4;
+    doc.setFont("helvetica", "bold");
+    doc.text("Observações:", 20, y);
+    doc.setFont("helvetica", "normal");
+    obsLines.forEach((line, idx) => {
+      doc.text(line, 20, y + (idx + 1) * lineHeight);
+    });
+    y += obsLines.length * lineHeight + 6;
+  }
+
+  if (excludedNames.length > 0) {
+    const excludedLines = doc.splitTextToSize(excludedNames.join(", "), 170);
+    const excludedHeight = excludedLines.length * lineHeight + 6;
+    ensureSpace(excludedHeight + 4, "Informações do Programa");
+    y += 4;
+    doc.setFont("helvetica", "bold");
+    doc.text("Municípios sem pendência automática:", 20, y);
+    doc.setFont("helvetica", "normal");
+    excludedLines.forEach((line, idx) => {
+      doc.text(line, 20, y + (idx + 1) * lineHeight);
+    });
+    y += excludedLines.length * lineHeight + 6;
+  }
+
+  // Resumo executivo
+  y += 10;
+  y = addSection(doc, "Resumo Executivo", y);
+  const cardWidth = 55;
+  const cardSpacing = 60;
+  const startX = 15;
+
+  y = addStatCard(doc, "Total de projetos", String(projects?.length || 0), startX, y, cardWidth);
+  y = addStatCard(
+    doc,
+    "Valor total contratado",
+    formatCurrencyBRL(totalAmount),
+    startX + cardSpacing,
+    y - 30,
+    cardWidth
+  );
+
+  y += 5;
+  y = addStatCard(
+    doc,
+    "Execução média",
+    `${Math.round(avgExecution)}%`,
+    startX,
+    y,
+    cardWidth
+  );
+
+  y += 20;
+  y = addSection(doc, "Abrangência", y);
+  doc.setFontSize(10);
+  doc.setFont("helvetica", "normal");
+  const coverageText =
+    municipalitiesCovered.length > 0
+      ? municipalitiesCovered.join(", ")
+      : "Nenhum município registrado.";
+  const coverageLines = doc.splitTextToSize(coverageText, 170);
+  coverageLines.forEach((line, idx) => {
+    ensureSpace(lineHeight);
+    doc.text(line, 20, y + idx * lineHeight);
+  });
+  y += coverageLines.length * lineHeight + 10;
+
+  // Projetos do programa
+  y = addSection(doc, "Projetos do programa", y);
+  const renderProgramProjects = (rows: any[]) => {
+    const columns = [
+      { x: 15, width: 75, align: "left" as const },
+      { x: 95, width: 12, align: "left" as const },
+      { x: 112, width: 28, align: "left" as const },
+      { x: 150, width: 30, align: "right" as const },
+      { x: 182, width: 16, align: "right" as const },
+    ];
+
+    const drawHeader = () => {
+      doc.setFontSize(9);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(0, 0, 0);
+      doc.setFillColor(241, 245, 249);
+      doc.rect(10, y, 190, 12, "F");
+      doc.text("Município / Objeto", columns[0].x, y + 8);
+      doc.text("Ano", columns[1].x, y + 8);
+      doc.text("Situação", columns[2].x, y + 8);
+      doc.text("Valor (R$)", columns[3].x + columns[3].width, y + 8, { align: "right" });
+      doc.text("Exec.%", columns[4].x + columns[4].width, y + 8, { align: "right" });
+      y += 15;
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(0, 0, 0);
+    };
+
+    drawHeader();
+
+    for (const proj of rows) {
+      const totalValue = Number(proj.transfer_amount || 0) + Number(proj.counterpart_amount || 0);
+      const values = [
+        `${proj.municipalities?.name || "—"} — ${proj.object || "—"}`,
+        String(proj.year ?? "—"),
+        STATUS_LABEL[proj.status as ProjectStatus] || proj.status,
+        formatCurrencyBRL(totalValue),
+        `${Number(proj.execution_percentage || 0).toFixed(1)}%`,
+      ];
+
+      const wrapped = values.map((text, index) =>
+        doc.splitTextToSize(text, columns[index].width)
+      );
+      const maxLines = Math.max(...wrapped.map((lines) => lines.length));
+      const rowHeight = Math.max(10, maxLines * lineHeight + 4);
+
+      if (y + rowHeight > bottomLimit) {
+        doc.addPage();
+        y = addStyledHeader(doc, "Relatório do Programa", program.name);
+        y = addSection(doc, "Projetos do programa (continuação)", y);
+        drawHeader();
+      }
+
+      doc.setFillColor(255, 255, 255);
+      doc.rect(10, y - 3, 190, rowHeight, "F");
+      doc.setDrawColor(226, 232, 240);
+      doc.setLineWidth(0.3);
+      doc.line(10, y + rowHeight - 3, 200, y + rowHeight - 3);
+
+      wrapped.forEach((lines, colIndex) => {
+        const col = columns[colIndex];
+        lines.forEach((line, lineIdx) => {
+          const textY = y + 2 + lineIdx * lineHeight;
+          if (col.align === "right") {
+            doc.text(line, col.x + col.width, textY, { align: "right" });
+          } else {
+            doc.text(line, col.x, textY);
+          }
+        });
+      });
+
+      y += rowHeight;
+    }
+  };
+
+  renderProgramProjects(projects || []);
+
+  // Rodapé
+  const pageHeightProgram = doc.internal.pageSize.getHeight();
+  doc.setFillColor(59, 130, 246);
+  doc.rect(0, pageHeightProgram - 20, doc.internal.pageSize.getWidth(), 20, "F");
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(10);
+  doc.text("Sistema de Gestão de Convênios e Projetos", 20, pageHeightProgram - 8);
+
+  const filename = `relatorio-programa_${(program.name || "programa").replace(/[^a-z0-9_-]+/gi, "_")}.pdf`;
+  doc.save(filename);
 }

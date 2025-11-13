@@ -18,6 +18,8 @@ type ProjectStatus =
   | "em_criacao"
   | "em_elaboracao"
   | "em_analise"
+  | "habilitada"
+  | "selecionada"
   | "em_complementacao"
   | "solicitado_documentacao"
   | "aguardando_documentacao"
@@ -26,7 +28,7 @@ type ProjectStatus =
   | "em_execucao"
   | "prestacao_contas"
   | "concluido"
-  | "cancelado";
+  | "arquivada";
 
 interface Project {
   id: string;
@@ -50,6 +52,8 @@ const STATUS_LABEL: Record<ProjectStatus, string> = {
   em_criacao: "Em Criação",
   em_elaboracao: "Em Elaboração",
   em_analise: "Em Análise",
+  habilitada: "Habilitada",
+  selecionada: "Selecionada",
   em_complementacao: "Em Complementação",
   solicitado_documentacao: "Solicitado Documentação",
   aguardando_documentacao: "Aguardando Documentação",
@@ -58,13 +62,15 @@ const STATUS_LABEL: Record<ProjectStatus, string> = {
   em_execucao: "Em Execução",
   prestacao_contas: "Prestação de Contas",
   concluido: "Concluído",
-  cancelado: "Cancelado",
+  arquivada: "Arquivada",
 };
 
 const BOARD_COLUMNS: ProjectStatus[] = [
   "em_criacao",
   "em_elaboracao",
   "em_analise",
+  "habilitada",
+  "selecionada",
   "em_complementacao",
   "solicitado_documentacao",
   "aguardando_documentacao",
@@ -361,6 +367,8 @@ export function KanbanBoard() {
       em_criacao: [],
       em_elaboracao: [],
       em_analise: [],
+      habilitada: [],
+      selecionada: [],
       em_complementacao: [],
       solicitado_documentacao: [],
       aguardando_documentacao: [],
@@ -369,7 +377,7 @@ export function KanbanBoard() {
       em_execucao: [],
       prestacao_contas: [],
       concluido: [],
-      cancelado: [],
+      arquivada: [],
     };
     for (const p of projects) {
       if (map[p.status]) map[p.status].push(p);

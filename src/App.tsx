@@ -11,6 +11,7 @@ import Projects from "./pages/Projects";
 import Programs from "./pages/Programs";
 import { UserControlPage } from "./pages/UserControl";
 import NotFound from "./pages/NotFound";
+import Tasks from "./pages/Tasks";
 
 const queryClient = new QueryClient();
 
@@ -43,6 +44,14 @@ const App = () => (
             element={
               <MainLayout>
                 <Projects />
+              </MainLayout>
+            }
+          />
+          <Route
+            path="/tasks"
+            element={
+              <MainLayout>
+                <Tasks />
               </MainLayout>
             }
           />

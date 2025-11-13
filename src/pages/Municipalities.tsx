@@ -2,13 +2,14 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Plus } from "lucide-react";
+import { FileText, Plus } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { MunicipalityDialog } from "@/components/municipalities/MunicipalityDialog";
 import MunicipalityInfoDialog from "@/components/municipalities/MunicipalityInfoDialog";
 import { usePermissions } from "@/hooks/use-permissions";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { generateMunicipalityPdf } from "@/lib/pdf";
 
 interface Municipality {
   id: string;
@@ -75,6 +76,22 @@ const Municipalities = () => {
     }
   };
 
+  const handleGenerateMunicipalityReport = async (municipalityId?: string) => {
+    try {
+      await generateMunicipalityPdf({ municipalityId });
+      toast({
+        title: "Relatório gerado",
+        description: "O download será iniciado automaticamente.",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Erro ao gerar relatório",
+        description: error.message || "Não foi possível gerar o PDF.",
+        variant: "destructive",
+      });
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -90,12 +107,22 @@ const Municipalities = () => {
           <h2 className="text-2xl md:text-3xl font-bold tracking-tight">Municípios</h2>
           <p className="text-sm md:text-base text-muted-foreground">Gerencie os municípios cadastrados</p>
         </div>
-        {permissions.canManageMunicipalities && (
-          <Button size="sm" onClick={() => { setSelectedMunicipality(undefined); setDialogOpen(true); }}>
-            <Plus className="h-3 w-3 md:h-4 md:w-4 md:mr-2" />
-            <span className="hidden sm:inline">Novo </span>Município
+        <div className="flex items-center gap-2 flex-wrap">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => handleGenerateMunicipalityReport()}
+          >
+            <FileText className="h-3 w-3 md:h-4 md:w-4 md:mr-2" />
+            Relatório (todos)
           </Button>
-        )}
+          {permissions.canManageMunicipalities && (
+            <Button size="sm" onClick={() => { setSelectedMunicipality(undefined); setDialogOpen(true); }}>
+              <Plus className="h-3 w-3 md:h-4 md:w-4 md:mr-2" />
+              <span className="hidden sm:inline">Novo </span>Município
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Filtro de busca */}
@@ -179,6 +206,20 @@ const Municipalities = () => {
                 {municipality.email && (
                   <p className="text-sm text-muted-foreground">{municipality.email}</p>
                 )}
+                <div className="mt-4">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleGenerateMunicipalityReport(municipality.id);
+                    }}
+                    className="flex items-center gap-2 px-2"
+                  >
+                    <FileText className="h-4 w-4" />
+                    Relatório
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           ))}

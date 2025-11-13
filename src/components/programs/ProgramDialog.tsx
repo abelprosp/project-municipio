@@ -463,6 +463,10 @@ export function ProgramDialog({
             </div>
             <div className="grid gap-2">
               <Label>Municípios sem pendência automática</Label>
+              <div className="flex justify-between text-xs text-muted-foreground">
+                <span>Disponíveis: {municipalities.length}</span>
+                <span>Selecionados: {formData.excluded_municipalities?.length || 0}</span>
+              </div>
               <ScrollArea className="h-48 border rounded">
                 <div className="p-3 space-y-2">
                   {municipalities.length === 0 ? (

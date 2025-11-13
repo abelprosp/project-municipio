@@ -20,6 +20,8 @@ type ProjectStatus =
   | "em_criacao"
   | "em_elaboracao"
   | "em_analise"
+  | "habilitada"
+  | "selecionada"
   | "em_complementacao"
   | "solicitado_documentacao"
   | "aguardando_documentacao"
@@ -28,12 +30,14 @@ type ProjectStatus =
   | "em_execucao"
   | "prestacao_contas"
   | "concluido"
-  | "cancelado";
+  | "arquivada";
 
 const STATUS_LABEL: Record<ProjectStatus, string> = {
   em_criacao: "Em Criação",
   em_elaboracao: "Em Elaboração",
   em_analise: "Em Análise",
+  habilitada: "Habilitada",
+  selecionada: "Selecionada",
   em_complementacao: "Em Complementação",
   solicitado_documentacao: "Solicitado Documentação",
   aguardando_documentacao: "Aguardando Documentação",
@@ -42,7 +46,7 @@ const STATUS_LABEL: Record<ProjectStatus, string> = {
   em_execucao: "Em Execução",
   prestacao_contas: "Prestação de Contas",
   concluido: "Concluído",
-  cancelado: "Cancelado",
+  arquivada: "Arquivada",
 };
 
 interface Project {
@@ -91,27 +95,7 @@ type ProjectDocument = Database["public"]["Tables"]["project_documents"]["Row"];
 type ProjectBankYield = Database["public"]["Tables"]["project_bank_yields"]["Row"];
 type ProjectReturn = Database["public"]["Tables"]["project_returns"]["Row"];
 
-const ALLOWED_FILE_TYPES = new Set([
-  "application/pdf",
-  "image/png",
-  "image/jpeg",
-  "application/msword",
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-  "application/vnd.ms-excel",
-  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-]);
-
-const ALLOWED_EXTENSIONS = [".pdf", ".png", ".jpg", ".jpeg", ".doc", ".docx", ".xls", ".xlsx"];
-
-const ACCEPT_ATTRIBUTE = ALLOWED_EXTENSIONS.join(",");
-
-const isAllowedFile = (file: File) => {
-  if (file.type && ALLOWED_FILE_TYPES.has(file.type)) {
-    return true;
-  }
-  const lowerName = file.name.toLowerCase();
-  return ALLOWED_EXTENSIONS.some((ext) => lowerName.endsWith(ext));
-};
+const ACCEPT_ATTRIBUTE = "*/*";
 
 export function ProjectInfoDialog({
   open,
@@ -181,16 +165,6 @@ export function ProjectInfoDialog({
     if (!project?.id) return;
     const file = e.target.files?.[0];
     if (!file) return;
-
-    if (!isAllowedFile(file)) {
-      toast({
-        title: "Formato não permitido",
-        description: "Envie arquivos PDF, imagens (PNG/JPEG), planilhas Excel ou documentos do Word.",
-        variant: "destructive",
-      });
-      e.target.value = "";
-      return;
-    }
 
     setUploading(true);
     try {

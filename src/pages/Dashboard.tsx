@@ -6,16 +6,22 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { createDashboardPdf } from "@/lib/pdf";
+import { createDashboardPdf, generateMunicipalityPdf } from "@/lib/pdf";
 import { exportDashboardToExcel } from "@/lib/export";
-import { Building2, FolderKanban, DollarSign, TrendingUp, BarChart3, Search, Plus, Filter, User, MapPin, RefreshCw, ArrowUp, ArrowDown, Info, ChevronDown, ChevronUp, X } from "lucide-react";
-import DailyTasks from "@/components/tasks/DailyTasks";
+import { Building2, FolderKanban, DollarSign, TrendingUp, Search, Plus, Filter, User, MapPin, RefreshCw, ArrowUp, ArrowDown, Info, ChevronDown, ChevronUp, X, LogOut } from "lucide-react";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, PieChart as RechartsPieChart, Cell, Pie, Label as RechartsLabel, LabelList, AreaChart, Area } from "recharts";
 import { Badge } from "@/components/ui/badge";
 import { UserControlPanel } from "@/components/user/UserControlPanel";
 import { useUserControl } from "@/hooks/use-user-control";
 import { MunicipalityDialog } from "@/components/municipalities/MunicipalityDialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { useToast } from "@/hooks/use-toast";
 // Removido debug visual para focar no novo layout
 
 interface DashboardStats {
@@ -73,6 +79,7 @@ const Dashboard = () => {
   
   // Hook para controle de usuário
   const { logActivity } = useUserControl();
+  const { toast } = useToast();
 
   // Carregar nome do usuário
   useEffect(() => {
@@ -333,6 +340,8 @@ const Dashboard = () => {
       em_criacao: "Em Criação",
       em_elaboracao: "Em Elaboração",
       em_analise: "Em Análise",
+      habilitada: "Habilitada",
+      selecionada: "Selecionada",
       em_complementacao: "Em Complementação",
       solicitado_documentacao: "Solicitado Documentação",
       aguardando_documentacao: "Aguardando Documentação",
@@ -341,7 +350,7 @@ const Dashboard = () => {
       em_execucao: "Em Execução",
       prestacao_contas: "Prestação de Contas",
       concluido: "Concluído",
-      cancelado: "Cancelado",
+      arquivada: "Arquivada",
     };
     return labels[status] || status;
   };
@@ -619,6 +628,8 @@ const Dashboard = () => {
       em_criacao: "#8884d8",
       em_elaboracao: "#82ca9d", 
       em_analise: "#ffc658",
+      habilitada: "#38bdf8",
+      selecionada: "#f97316",
       em_complementacao: "#ff7300",
       solicitado_documentacao: "#00ff00",
       aguardando_documentacao: "#ff00ff",
@@ -627,7 +638,7 @@ const Dashboard = () => {
       em_execucao: "#0000ff",
       prestacao_contas: "#ffff00",
       concluido: "#00ff00",
-      cancelado: "#ff0000",
+      arquivada: "#94a3b8",
     };
     return colorMap[status] || "#8884d8";
   };
@@ -702,12 +713,43 @@ const Dashboard = () => {
               <Search className="h-3 w-3" />
             </Button>
             {/* Usuário */}
-            <div className="flex items-center gap-1 md:gap-2 rounded-full border px-2 py-1 ml-auto">
-              <User className="h-3 w-3 md:h-4 md:w-4 flex-shrink-0" />
-              <span className="text-xs md:text-sm hidden sm:inline truncate max-w-[150px]" title={userName}>
-                {userName}
-              </span>
-            </div>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  type="button"
+                  className="flex items-center gap-1 md:gap-2 rounded-full border px-2 py-1 ml-auto hover:bg-muted transition-colors"
+                >
+                  <User className="h-3 w-3 md:h-4 md:w-4 flex-shrink-0" />
+                  <span className="text-xs md:text-sm hidden sm:inline truncate max-w-[150px]" title={userName}>
+                    {userName}
+                  </span>
+                  <ChevronDown className="h-3 w-3 md:h-4 md:w-4 text-muted-foreground" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => navigate("/user-control")}>
+                  <User className="h-4 w-4 mr-2" />
+                  Meu perfil
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={async () => {
+                    const { error } = await supabase.auth.signOut();
+                    if (error) {
+                      toast({
+                        title: "Erro ao sair",
+                        description: error.message,
+                        variant: "destructive",
+                      });
+                    } else {
+                      navigate("/auth");
+                    }
+                  }}
+                >
+                  <LogOut className="h-4 w-4 mr-2" />
+                  Sair
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
       </div>
@@ -789,6 +831,8 @@ const Dashboard = () => {
                     <SelectItem value="em_criacao">Em Criação</SelectItem>
                     <SelectItem value="em_elaboracao">Em Elaboração</SelectItem>
                     <SelectItem value="em_analise">Em Análise</SelectItem>
+                    <SelectItem value="habilitada">Habilitada</SelectItem>
+                    <SelectItem value="selecionada">Selecionada</SelectItem>
                     <SelectItem value="em_complementacao">Em Complementação</SelectItem>
                     <SelectItem value="solicitado_documentacao">Solicitado Documentação</SelectItem>
                     <SelectItem value="aguardando_documentacao">Aguardando Documentação</SelectItem>
@@ -797,7 +841,7 @@ const Dashboard = () => {
                     <SelectItem value="em_execucao">Em Execução</SelectItem>
                     <SelectItem value="prestacao_contas">Prestação de Contas</SelectItem>
                     <SelectItem value="concluido">Concluído</SelectItem>
-                    <SelectItem value="cancelado">Cancelado</SelectItem>
+                    <SelectItem value="arquivada">Arquivada</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -1183,26 +1227,35 @@ const Dashboard = () => {
 
       {/* Bloco "Evolução por Status" removido conforme solicitação */}
 
-      {/* Atividades Recentes - Organizado de forma simétrica */}
-      <Card>
-        <CardHeader className="px-3 md:px-6">
-          <CardTitle className="flex items-center gap-2 text-base md:text-lg">
-            <BarChart3 className="h-4 w-4 md:h-5 md:w-5" />
-            Atividades Recentes
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="pt-4 md:pt-6 px-3 md:px-6">
-          <DailyTasks />
-        </CardContent>
-      </Card>
-
       {/* Quadro de Municípios */}
       <Card>
-        <CardHeader className="px-3 md:px-6">
+        <CardHeader className="px-3 md:px-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <CardTitle className="flex items-center gap-2 text-base md:text-lg">
             <MapPin className="h-4 w-4 md:h-5 md:w-5" />
             Quadro de Municípios
           </CardTitle>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="border border-primary/40 bg-primary/10 text-primary hover:bg-primary/20 hover:text-primary dark:border-primary/30 dark:bg-primary/15 dark:text-primary-foreground"
+            onClick={async () => {
+              try {
+                await generateMunicipalityPdf();
+                toast({
+                  title: "Relatório gerado",
+                  description: "O download com todos os municípios foi iniciado.",
+                });
+              } catch (error: any) {
+                toast({
+                  title: "Erro ao gerar relatório",
+                  description: error?.message || "Não foi possível exportar o PDF.",
+                  variant: "destructive",
+                });
+              }
+            }}
+          >
+            Exportar relatório (PDF)
+          </Button>
         </CardHeader>
         <CardContent className="pt-4 md:pt-6 px-3 md:px-6">
           {/* Filtros */}
@@ -1225,6 +1278,8 @@ const Dashboard = () => {
                   <SelectItem value="em_criacao">Em Criação</SelectItem>
                   <SelectItem value="em_elaboracao">Em Elaboração</SelectItem>
                   <SelectItem value="em_analise">Em Análise</SelectItem>
+                  <SelectItem value="habilitada">Habilitada</SelectItem>
+                  <SelectItem value="selecionada">Selecionada</SelectItem>
                   <SelectItem value="em_complementacao">Em Complementação</SelectItem>
                   <SelectItem value="solicitado_documentacao">Solicitado Documentação</SelectItem>
                   <SelectItem value="aguardando_documentacao">Aguardando Documentação</SelectItem>
@@ -1233,7 +1288,7 @@ const Dashboard = () => {
                   <SelectItem value="em_execucao">Em Execução</SelectItem>
                   <SelectItem value="prestacao_contas">Prestação de Contas</SelectItem>
                   <SelectItem value="concluido">Concluído</SelectItem>
-                  <SelectItem value="cancelado">Cancelado</SelectItem>
+                  <SelectItem value="arquivada">Arquivada</SelectItem>
                 </SelectContent>
               </Select>
             </div>

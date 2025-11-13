@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { formatDateLocal } from "@/lib/utils";
+import { generateProgramPdf } from "@/lib/pdf";
 
 interface Program {
   id: string;
@@ -288,21 +289,7 @@ const Programs = () => {
           {programs.map((program) => (
             <Card
               key={program.id}
-              className="hover:shadow-md transition-shadow cursor-pointer"
-              onClick={async () => {
-                try {
-                  const { data, error } = await supabase
-                    .from("programs")
-                    .select("*")
-                    .eq("id", program.id)
-                    .single();
-                  if (error) throw error;
-                  setDetailProgram(data);
-                  setInfoDialogOpen(true);
-                } catch (err: any) {
-                  toast({ title: "Erro ao abrir detalhes", description: err.message, variant: "destructive" });
-                }
-              }}
+              className="hover:shadow-md transition-shadow"
             >
               <CardHeader>
                 <div className="flex items-start justify-between">
@@ -374,6 +361,51 @@ const Programs = () => {
                       <p className="text-sm">{program.notes}</p>
                     </div>
                   )}
+                </div>
+                <div className="mt-4 flex justify-end gap-2">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="relative overflow-hidden border border-primary/40 bg-primary/10 text-primary hover:bg-primary/20 hover:text-primary dark:border-primary/30 dark:bg-primary/15 dark:text-primary-foreground dark:hover:bg-primary/25"
+                    onClick={async () => {
+                      try {
+                        const { data, error } = await supabase
+                          .from("programs")
+                          .select("*")
+                          .eq("id", program.id)
+                          .single();
+                        if (error) throw error;
+                        setDetailProgram(data);
+                        setInfoDialogOpen(true);
+                      } catch (err: any) {
+                        toast({ title: "Erro ao abrir detalhes", description: err.message, variant: "destructive" });
+                      }
+                    }}
+                  >
+                    Ver detalhes
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="relative overflow-hidden border border-secondary/40 bg-secondary/10 text-secondary-foreground hover:bg-secondary/20 dark:border-secondary/30 dark:bg-secondary/15"
+                    onClick={async () => {
+                      try {
+                        await generateProgramPdf(program.id);
+                        toast({
+                          title: "Relatório gerado",
+                          description: "O download será iniciado automaticamente.",
+                        });
+                      } catch (err: any) {
+                        toast({
+                          title: "Erro ao gerar relatório",
+                          description: err.message || "Não foi possível gerar o PDF do programa.",
+                          variant: "destructive",
+                        });
+                      }
+                    }}
+                  >
+                    Relatório (PDF)
+                  </Button>
                 </div>
               </CardContent>
             </Card>

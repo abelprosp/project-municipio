@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Label } from "@/components/ui/label";
@@ -5,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { usePermissions } from "@/hooks/use-permissions";
 import { formatDateLocal } from "@/lib/utils";
+import { supabase } from "@/integrations/supabase/client";
 
 interface Program {
   id: string;
@@ -14,6 +16,7 @@ interface Program {
   status: string;
   notes: string | null;
   created_at?: string;
+  excluded_municipalities?: string[] | null;
 }
 
 interface ProgramInfoDialogProps {
@@ -27,6 +30,22 @@ const formatDate = (date: string | null) => formatDateLocal(date);
 
 export default function ProgramInfoDialog({ open, onOpenChange, program, onEdit }: ProgramInfoDialogProps) {
   const { permissions } = usePermissions();
+  const [excludedNames, setExcludedNames] = useState<string[]>([]);
+
+  useEffect(() => {
+    const loadExcluded = async () => {
+      if (!program?.excluded_municipalities || program.excluded_municipalities.length === 0) {
+        setExcludedNames([]);
+        return;
+      }
+      const { data } = await supabase
+        .from("municipalities")
+        .select("id, name")
+        .in("id", program.excluded_municipalities as string[]);
+      setExcludedNames((data || []).map((m) => m.name).filter(Boolean));
+    };
+    loadExcluded();
+  }, [program?.excluded_municipalities]);
   
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -60,6 +79,18 @@ export default function ProgramInfoDialog({ open, onOpenChange, program, onEdit 
               <div>
                 <Label className="text-xs text-muted-foreground">Observações</Label>
                 <div className="mt-1">{program.notes}</div>
+              </div>
+            )}
+            {excludedNames.length > 0 && (
+              <div>
+                <Label className="text-xs text-muted-foreground">Municípios sem pendência automática</Label>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {excludedNames.map((name) => (
+                    <Badge key={name} variant="outline" className="px-2 py-0.5 text-[11px]">
+                      {name}
+                    </Badge>
+                  ))}
+                </div>
               </div>
             )}
           </div>
