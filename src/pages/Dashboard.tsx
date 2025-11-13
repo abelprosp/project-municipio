@@ -1240,7 +1240,10 @@ const Dashboard = () => {
             className="border border-primary/40 bg-primary/10 text-primary hover:bg-primary/20 hover:text-primary dark:border-primary/30 dark:bg-primary/15 dark:text-primary-foreground"
             onClick={async () => {
               try {
-                await generateMunicipalityPdf();
+                await generateMunicipalityPdf({
+                  status: municipalitiesBoardFilter.status,
+                  includeAllStatuses: municipalitiesBoardFilter.showAll,
+                });
                 toast({
                   title: "Relatório gerado",
                   description: "O download com todos os municípios foi iniciado.",

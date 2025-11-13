@@ -67,6 +67,14 @@ const formatCurrencyBRL = (v: number) =>
 
 const formatDateBR = (date?: string | null) => formatDateLocal(date ?? null, "—");
 
+type MunicipalityPdfOptions = {
+  municipalityId?: string;
+  status?: string;
+  includeAllStatuses?: boolean;
+  from?: string;
+  to?: string;
+};
+
 // Função para adicionar cabeçalho estilizado
 const addStyledHeader = (doc: jsPDF, title: string, subtitle?: string) => {
   const pageWidth = doc.internal.pageSize.getWidth();
@@ -728,13 +736,13 @@ export async function generateProjectsListPdf(projects: any[]) {
   doc.save("relatorio-lista-projetos.pdf");
 }
 
-export async function generateMunicipalityPdf(options: { municipalityId?: string } = {}) {
-  const data = await buildDashboardReportData();
-  const selectedMunicipalities = options.municipalityId
+export async function generateMunicipalityPdf(options: MunicipalityPdfOptions = {}) {
+  const data = await buildDashboardReportData({ from: options.from, to: options.to });
+  const rawMunicipalities = options.municipalityId
     ? data.municipalities.filter((mun) => mun.id === options.municipalityId)
     : data.municipalities;
 
-  if (!selectedMunicipalities.length) {
+  if (!rawMunicipalities.length) {
     const docEmpty = new jsPDF();
     let yEmpty = addStyledHeader(docEmpty, "Relatório por Município", "Nenhum município encontrado");
     docEmpty.setFont("helvetica", "normal");
@@ -745,9 +753,64 @@ export async function generateMunicipalityPdf(options: { municipalityId?: string
     return;
   }
 
+  const shouldFilterByStatus =
+    options.status && options.status !== "all" && !options.includeAllStatuses;
+
+  const municipalitiesForReport = rawMunicipalities
+    .map((municipality) => {
+      const filteredProjects = shouldFilterByStatus
+        ? municipality.projects.filter((project) => project.status === options.status)
+        : municipality.projects;
+
+      if (!filteredProjects.length) {
+        return null;
+      }
+
+      const totalProjects = filteredProjects.length;
+      const totalAmount = filteredProjects.reduce(
+        (sum, project) =>
+          sum + Number(project.transfer_amount || 0) + Number(project.counterpart_amount || 0),
+        0
+      );
+      const avgExecution =
+        totalProjects > 0
+          ? filteredProjects.reduce(
+              (sum, project) => sum + Number(project.execution_percentage || 0),
+              0
+            ) / totalProjects
+          : 0;
+
+      return {
+        ...municipality,
+        projects: filteredProjects,
+        totalProjects,
+        totalAmount,
+        avgExecution,
+      };
+    })
+    .filter(Boolean) as MunicipalityWithProjects[];
+
+  if (!municipalitiesForReport.length) {
+    const docEmpty = new jsPDF();
+    let yEmpty = addStyledHeader(
+      docEmpty,
+      "Relatório por Município",
+      "Nenhum município encontrado com os filtros"
+    );
+    docEmpty.setFont("helvetica", "normal");
+    docEmpty.setTextColor(0, 0, 0);
+    docEmpty.text(
+      "Não foram encontrados municípios com os filtros selecionados.",
+      20,
+      yEmpty + 10
+    );
+    docEmpty.save("relatorio-municipios.pdf");
+    return;
+  }
+
   const doc = new jsPDF();
 
-  selectedMunicipalities.forEach((municipality, index) => {
+  municipalitiesForReport.forEach((municipality, index) => {
     if (index > 0) {
       doc.addPage();
     }
@@ -816,7 +879,8 @@ export async function generateMunicipalityPdf(options: { municipalityId?: string
       drawHeaders();
 
       for (const project of rows) {
-        const totalValue = project.transfer_amount + project.counterpart_amount;
+        const totalValue =
+          Number(project.transfer_amount || 0) + Number(project.counterpart_amount || 0);
         const values = [
           project.object || "—",
           String(project.year ?? "—"),
@@ -864,8 +928,8 @@ export async function generateMunicipalityPdf(options: { municipalityId?: string
   });
 
   const fileName = (() => {
-    if (options.municipalityId && selectedMunicipalities[0]) {
-      return `relatorio-municipio-${selectedMunicipalities[0].name.replace(/[^a-z0-9_-]+/gi, "_")}.pdf`;
+    if (options.municipalityId && municipalitiesForReport[0]) {
+      return `relatorio-municipio-${municipalitiesForReport[0].name.replace(/[^a-z0-9_-]+/gi, "_")}.pdf`;
     }
     return "relatorio-municipios.pdf";
   })();
