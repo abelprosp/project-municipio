@@ -250,6 +250,18 @@ export function UserControlPanel({ className }: UserControlPanelProps) {
     }
   };
 
+  const getDueStatusText = (dueDate: string) => {
+    const due = new Date(dueDate);
+    if (Number.isNaN(due.getTime())) {
+      return "Prazo inválido";
+    }
+
+    const distance = formatDistanceToNow(due, { addSuffix: true, locale: ptBR });
+    return due.getTime() < Date.now()
+      ? `Venceu ${distance}`
+      : `Vence ${distance}`;
+  };
+
   const compareByDueAndPriority = (a: UserTask, b: UserTask, sortOrder: 'asc' | 'desc' = 'asc') => {
     const priorityRank: Record<string, number> = { urgent: 0, high: 1, medium: 2, low: 3 };
     
@@ -606,7 +618,7 @@ export function UserControlPanel({ className }: UserControlPanelProps) {
                         <div className="flex items-center gap-4 text-xs text-muted-foreground">
                           <span>Criada: {formatDistanceToNow(new Date(task.created_at), { addSuffix: true, locale: ptBR })}</span>
                           {task.due_date && (
-                            <span>Vence: {formatDistanceToNow(new Date(task.due_date), { addSuffix: true, locale: ptBR })}</span>
+                            <span>{getDueStatusText(task.due_date)}</span>
                           )}
                         </div>
                         {task.tags.length > 0 && (

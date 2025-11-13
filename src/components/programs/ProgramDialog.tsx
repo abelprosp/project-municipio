@@ -132,10 +132,111 @@ export function ProgramDialog({
 
         if (error) throw error;
 
+        const warnings: string[] = [];
+        const nameChanged = program.name !== formData.name;
+        const agencyChanged = program.responsible_agency !== formData.responsible_agency;
+
+        if (nameChanged || agencyChanged) {
+          const projectUpdates: Record<string, any> = {};
+          if (nameChanged) {
+            projectUpdates.object = `Pendente — ${formData.name}`;
+          }
+          if (agencyChanged) {
+            projectUpdates.ministry = formData.responsible_agency;
+          }
+
+          if (Object.keys(projectUpdates).length > 0) {
+            const { error: pendingUpdateError } = await supabase
+              .from("projects")
+              .update(projectUpdates)
+              .eq("program_id", program.id)
+              .eq("status", "em_criacao")
+              .ilike("object", "Pendente —%");
+
+            if (pendingUpdateError) {
+              warnings.push(`Pendências não foram atualizadas automaticamente: ${pendingUpdateError.message}`);
+            }
+          }
+        }
+
+        const previousExcluded = new Set(program.excluded_municipalities || []);
+        const currentExcluded = new Set(formData.excluded_municipalities || []);
+
+        const newlyExcluded = Array.from(currentExcluded).filter((id) => !previousExcluded.has(id));
+        const newlyIncluded = Array.from(previousExcluded).filter((id) => !currentExcluded.has(id));
+
+        if (newlyExcluded.length > 0) {
+          const { error: deleteError } = await supabase
+            .from("projects")
+            .delete()
+            .eq("program_id", program.id)
+            .eq("status", "em_criacao")
+            .ilike("object", "Pendente —%")
+            .in("municipality_id", newlyExcluded);
+
+          if (deleteError) {
+            warnings.push(`Não foi possível remover todas as pendências dos municípios excluídos: ${deleteError.message}`);
+          }
+        }
+
+        if (newlyIncluded.length > 0) {
+          const year = new Date().getFullYear();
+
+          for (const municipalityId of newlyIncluded) {
+            const { data: existing, error: existingError } = await supabase
+              .from("projects")
+              .select("id")
+              .eq("program_id", program.id)
+              .eq("municipality_id", municipalityId)
+              .eq("year", year)
+              .limit(1);
+
+            if (existingError) {
+              warnings.push(`Falha ao verificar pendências para o município selecionado: ${existingError.message}`);
+              continue;
+            }
+
+            if (existing && existing.length > 0) {
+              continue;
+            }
+
+            const { error: insertError } = await supabase.from("projects").insert({
+              municipality_id: municipalityId,
+              program_id: program.id,
+              year,
+              object: `Pendente — ${formData.name}`,
+              ministry: formData.responsible_agency,
+              transfer_amount: 0,
+              counterpart_amount: 0,
+              execution_percentage: 0,
+              status: "em_criacao",
+              start_date: null,
+              end_date: null,
+              accountability_date: null,
+              final_deadline: null,
+              notes: "Criado automaticamente após atualização das pendências do programa",
+            });
+
+            if (insertError) {
+              warnings.push(`Não foi possível recriar pendência para um município incluído: ${insertError.message}`);
+            }
+          }
+        }
+
         toast({
           title: "Programa atualizado",
-          description: "As informações foram salvas com sucesso.",
+          description: warnings.length === 0
+            ? "As informações foram salvas com sucesso."
+            : "Programa atualizado com avisos. Verifique as pendências.",
         });
+
+        if (warnings.length > 0) {
+          toast({
+            title: "Avisos ao atualizar programa",
+            description: warnings.join(" "),
+            variant: "destructive",
+          });
+        }
       } else {
         const { data: createdPrograms, error } = await supabase
           .from("programs")
