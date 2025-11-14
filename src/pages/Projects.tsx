@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Plus, LayoutList, KanbanSquare, FileText, History, Table as TableIcon, Activity, Building2, Pencil } from "lucide-react";
+import { Plus, LayoutList, KanbanSquare, FileText, History, Table as TableIcon, Activity, Building2, Pencil, CheckSquare } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { ProjectDialog } from "@/components/projects/ProjectDialog";
 import { KanbanBoard } from "@/components/projects/KanbanBoard";
@@ -19,22 +20,44 @@ import { generateProjectsListPdf, generateProjectPdfById } from "@/lib/pdf";
 import { exportProjectsToCsv, exportMovementsToCsv } from "@/lib/export";
 import { usePermissions } from "@/hooks/use-permissions";
 import { formatDateLocal } from "@/lib/utils";
+import { useUserControl } from "@/hooks/use-user-control";
 
-interface Project {
+type AmendmentType = "extra" | "individual" | "rp2" | "outro";
+type ProjectStatus =
+  | "em_criacao"
+  | "em_elaboracao"
+  | "em_analise"
+  | "habilitada"
+  | "selecionada"
+  | "em_complementacao"
+  | "solicitado_documentacao"
+  | "aguardando_documentacao"
+  | "clausula_suspensiva"
+  | "aprovado"
+  | "em_execucao"
+  | "prestacao_contas"
+  | "concluido"
+  | "arquivada";
+
+interface ProjectRecord {
   id: string;
   year: number;
   proposal_number: string | null;
   object: string;
   ministry: string | null;
-  status: string;
+  status: ProjectStatus;
   transfer_amount: number;
   counterpart_amount: number;
   execution_percentage: number;
   municipality_id: string;
+  program_id?: string | null;
   start_date: string | null;
   end_date: string | null;
   final_deadline: string | null;
   accountability_date: string | null;
+  parliamentarian: string | null;
+  amendment_type: AmendmentType | null;
+  notes: string | null;
   municipalities: {
     name: string;
   };
@@ -43,11 +66,11 @@ interface Project {
   } | null;
 }
 
+type TaskPriority = "low" | "medium" | "high" | "urgent";
+
 const Projects = () => {
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [selectedProject, setSelectedProject] = useState<Project | undefined>(undefined);
+  const [selectedProject, setSelectedProject] = useState<ProjectRecord | undefined>(undefined);
   const [viewMode, setViewMode] = useState<"lista" | "kanban" | "tabela">("lista");
   const [municipalities, setMunicipalities] = useState<any[]>([]);
   const [programs, setPrograms] = useState<any[]>([]);
@@ -75,43 +98,58 @@ const Projects = () => {
   const [munInfoOpen, setMunInfoOpen] = useState(false);
   const [detailMunicipality, setDetailMunicipality] = useState<any | null>(null);
   const [latestResponsibleMap, setLatestResponsibleMap] = useState<Record<string, string>>({});
+  const [page, setPage] = useState(1);
+  const pageSize = 12;
+  const [exporting, setExporting] = useState<null | "pdf" | "csv">(null);
+  const [taskDialogOpen, setTaskDialogOpen] = useState(false);
+  const [taskProject, setTaskProject] = useState<ProjectRecord | null>(null);
+  const [taskForm, setTaskForm] = useState({
+    title: "",
+    description: "",
+    dueDate: "",
+    priority: "medium" as TaskPriority,
+    assignedTo: "",
+  });
+  const [taskUsers, setTaskUsers] = useState<{ id: string; displayName: string }[]>([]);
+  const [creatingTask, setCreatingTask] = useState(false);
   const { toast } = useToast();
   const { permissions } = usePermissions();
+  const { createTask } = useUserControl();
 
   useEffect(() => {
-    let mounted = true;
-    
-    const loadData = async () => {
-      await loadOptions();
-      if (mounted) {
-        await loadProjects();
-      }
-    };
-    
-    loadData();
-    
-    return () => {
-      mounted = false;
-    };
+    loadOptions();
   }, []);
 
   useEffect(() => {
-    let mounted = true;
-    
-    // Recarregar projetos quando filtros mudarem
-    const loadData = async () => {
-      if (mounted) {
-        await loadProjects();
-      }
-    };
-    
-    loadData();
-    
-    return () => {
-      mounted = false;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filters]);
+    (async () => {
+      const { data } = await supabase
+        .from("profiles")
+        .select("id, name, full_name, email")
+        .order("full_name", { ascending: true })
+        .order("name", { ascending: true });
+      const mapped =
+        data?.map((user) => ({
+          id: user.id,
+          displayName: user.full_name || user.name || user.email,
+        })) || [];
+      setTaskUsers(mapped);
+    })();
+  }, []);
+
+  useEffect(() => {
+    setPage(1);
+  }, [
+    filters.municipality_id,
+    filters.program_id,
+    filters.ministry,
+    filters.status,
+    filters.from_date,
+    filters.to_date,
+    filters.end_date_from,
+    filters.end_date_to,
+    filters.sortBy,
+    filters.sortOrder,
+  ]);
 
   const loadOptions = async () => {
     try {
@@ -155,149 +193,290 @@ const Projects = () => {
 
   const latestResponsible = (projectId: string) => latestResponsibleMap[projectId] || "—";
 
-  const loadProjects = async () => {
-    try {
-      // Tentar primeiro com select('*'), se falhar por causa de final_deadline, tentar sem ele
-      let query = supabase
-        .from("projects")
-        .select(`*, municipalities(name), programs(name)`); // usa FKs
+  const applyProjectFilters = (query: any, options: { includeFinalDeadline?: boolean } = {}) => {
+    const includeFinalDeadline = options.includeFinalDeadline !== false;
 
-      if (filters.municipality_id) {
-        query = query.eq("municipality_id", filters.municipality_id);
-      }
-      if (filters.program_id) {
-        query = query.eq("program_id", filters.program_id);
-      }
-      if (filters.ministry) {
-        query = query.ilike("ministry", `%${filters.ministry}%`);
-      }
-      
-      // Filtro de status
-      if (filters.status) {
-        if (filters.status === "__finalizados__") {
-        // Mostrar apenas finalizados/arquivados
+    if (filters.municipality_id) {
+      query = query.eq("municipality_id", filters.municipality_id);
+    }
+    if (filters.program_id) {
+      query = query.eq("program_id", filters.program_id);
+    }
+    if (filters.ministry) {
+      query = query.ilike("ministry", `%${filters.ministry}%`);
+    }
+
+    if (filters.status) {
+      if (filters.status === "__finalizados__") {
         query = query.in("status", ["concluido", "arquivada"]);
-        } else if (filters.status !== "__all__") {
-          // Status específico
-          query = query.eq("status", filters.status);
-        }
-        // Se for "__all__", não aplicar filtro de status
-      } else {
-        // Por padrão (sem filtro), excluir finalizados e arquivados
-        query = query.not("status", "eq", "concluido").not("status", "eq", "arquivada");
+      } else if (filters.status !== "__all__") {
+        query = query.eq("status", filters.status);
       }
-      
-      if (filters.from_date) {
-        query = query.gte("created_at", `${filters.from_date}T00:00:00.000Z`);
-      }
-      if (filters.to_date) {
-        query = query.lte("created_at", `${filters.to_date}T23:59:59.999Z`);
-      }
-      // Aplicar filtros de final_deadline apenas se o campo existir
-      let hasFinalDeadlineFilter = false;
+    } else {
+      query = query.not("status", "eq", "concluido").not("status", "eq", "arquivada");
+    }
+
+    if (filters.from_date) {
+      query = query.gte("created_at", `${filters.from_date}T00:00:00.000Z`);
+    }
+    if (filters.to_date) {
+      query = query.lte("created_at", `${filters.to_date}T23:59:59.999Z`);
+    }
+
+    if (includeFinalDeadline) {
       if (filters.end_date_from) {
         query = query.gte("final_deadline", filters.end_date_from);
-        hasFinalDeadlineFilter = true;
       }
       if (filters.end_date_to) {
         query = query.lte("final_deadline", filters.end_date_to);
-        hasFinalDeadlineFilter = true;
+      }
+    }
+
+    if (filters.sortBy === "end_date") {
+      query = query.order("end_date", { ascending: filters.sortOrder === "asc", nullsFirst: false });
+    } else if (filters.sortBy === "accountability_date") {
+      query = query.order("accountability_date", { ascending: filters.sortOrder === "asc", nullsFirst: false });
+    } else {
+      query = query.order("created_at", { ascending: filters.sortOrder === "asc" });
+    }
+
+    return query;
+  };
+
+  const projectsQuery = useQuery<{ projects: ProjectRecord[]; total: number }, Error>({
+    queryKey: ["projects", filters, page, pageSize],
+    placeholderData: (previousData) => previousData ?? { projects: [], total: 0 },
+    queryFn: async () => {
+      const projectSelect = `*, municipalities(name), programs(name)`;
+      const fallbackSelect = `
+        id,
+        year,
+        proposal_number,
+        object,
+        ministry,
+        parliamentarian,
+        amendment_type,
+        transfer_amount,
+        counterpart_amount,
+        execution_percentage,
+        status,
+        municipality_id,
+        program_id,
+        start_date,
+        end_date,
+        accountability_date,
+        notes,
+        created_at,
+        updated_at,
+        municipalities(name),
+        programs(name)
+      `;
+
+      const from = (page - 1) * pageSize;
+      let query = applyProjectFilters(
+        supabase.from("projects").select(projectSelect, { count: "exact" }),
+        { includeFinalDeadline: true }
+      );
+
+      let { data, error, count } = await query.range(from, from + pageSize - 1);
+
+      if (
+        error &&
+        (error.message?.includes("final_deadline") ||
+          error.message?.includes("column") ||
+          error.code === "PGRST116" ||
+          error.message?.includes("Bad Request"))
+      ) {
+        let fallbackQuery = applyProjectFilters(
+          supabase.from("projects").select(fallbackSelect, { count: "exact" }),
+          { includeFinalDeadline: false }
+        );
+        const retryResult = await fallbackQuery.range(from, from + pageSize - 1);
+        if (retryResult.error) {
+          throw retryResult.error;
+        }
+        return {
+          projects: (retryResult.data as ProjectRecord[]) || [],
+          total: retryResult.count ?? retryResult.data?.length ?? 0,
+        };
       }
 
-      // Ordenação
-      // Só ordena por vigência/prestação de contas quando não está mostrando finalizados
-      if (filters.sortBy === "end_date") {
-        query = query.order("end_date", { ascending: filters.sortOrder === "asc", nullsFirst: false });
-      } else if (filters.sortBy === "accountability_date") {
-        query = query.order("accountability_date", { ascending: filters.sortOrder === "asc", nullsFirst: false });
-      } else {
-        query = query.order("created_at", { ascending: filters.sortOrder === "asc" });
-      }
-
-      let { data, error } = await query;
-
-      // Se houver erro relacionado a final_deadline, tentar novamente sem esse filtro e sem select('*')
-      if (error && (error.message?.includes("final_deadline") || error.message?.includes("column") || error.code === "PGRST116" || error.message?.includes("Bad Request"))) {
-        // Refazer a query sem final_deadline (listando campos explicitamente)
-        query = supabase
-          .from("projects")
-          .select(`
-            id,
-            year,
-            proposal_number,
-            object,
-            ministry,
-            parliamentarian,
-            amendment_type,
-            transfer_amount,
-            counterpart_amount,
-            execution_percentage,
-            status,
-            municipality_id,
-            program_id,
-            start_date,
-            end_date,
-            accountability_date,
-            notes,
-            created_at,
-            updated_at,
-            municipalities(name),
-            programs(name)
-          `);
-
-        if (filters.municipality_id) {
-          query = query.eq("municipality_id", filters.municipality_id);
-        }
-        if (filters.program_id) {
-          query = query.eq("program_id", filters.program_id);
-        }
-        if (filters.ministry) {
-          query = query.ilike("ministry", `%${filters.ministry}%`);
-        }
-        
-        if (filters.status) {
-          if (filters.status === "__finalizados__") {
-            query = query.in("status", ["concluido", "arquivada"]);
-          } else if (filters.status !== "__all__") {
-            query = query.eq("status", filters.status);
-          }
-        } else {
-          query = query.not("status", "eq", "concluido").not("status", "eq", "arquivada");
-        }
-        
-        if (filters.from_date) {
-          query = query.gte("created_at", `${filters.from_date}T00:00:00.000Z`);
-        }
-        if (filters.to_date) {
-          query = query.lte("created_at", `${filters.to_date}T23:59:59.999Z`);
-        }
-        // Não aplicar filtros de final_deadline (campo não existe)
-
-        if (filters.sortBy === "end_date") {
-          query = query.order("end_date", { ascending: filters.sortOrder === "asc", nullsFirst: false });
-        } else if (filters.sortBy === "accountability_date") {
-          query = query.order("accountability_date", { ascending: filters.sortOrder === "asc", nullsFirst: false });
-        } else {
-          query = query.order("created_at", { ascending: filters.sortOrder === "asc" });
-        }
-
-        const retryResult = await query;
-        if (retryResult.error) throw retryResult.error;
-        data = retryResult.data;
-      } else if (error) {
+      if (error) {
         throw error;
       }
-      setProjects(data || []);
+
+      return {
+        projects: (data as ProjectRecord[]) || [],
+        total: count ?? data?.length ?? 0,
+      };
+    },
+  });
+
+  const projects = projectsQuery.data?.projects ?? [];
+  const totalProjects = projectsQuery.data?.total ?? 0;
+  const totalPages = Math.max(1, Math.ceil(totalProjects / pageSize));
+  const showingFrom = projects.length ? (page - 1) * pageSize + 1 : 0;
+  const showingTo = projects.length ? showingFrom + projects.length - 1 : 0;
+  const isProjectsLoading = projectsQuery.isLoading;
+  const isProjectsFetching = projectsQuery.isFetching;
+  const projectsError = projectsQuery.error as Error | null;
+  const canGoPrev = page > 1;
+  const canGoNext = page < totalPages;
+
+  useEffect(() => {
+    if (page > totalPages) {
+      setPage(totalPages);
+    }
+  }, [page, totalPages]);
+
+  const fetchAllProjectsForExport = async () => {
+    const projectSelect = `*, municipalities(name), programs(name)`;
+    const fallbackSelect = `
+      id,
+      year,
+      proposal_number,
+      object,
+      ministry,
+      parliamentarian,
+      amendment_type,
+      transfer_amount,
+      counterpart_amount,
+      execution_percentage,
+      status,
+      municipality_id,
+      program_id,
+      start_date,
+      end_date,
+      accountability_date,
+      notes,
+      created_at,
+      updated_at,
+      municipalities(name),
+      programs(name)
+    `;
+
+    let query = applyProjectFilters(
+      supabase.from("projects").select(projectSelect),
+      { includeFinalDeadline: true }
+    );
+
+    const { data, error } = await query;
+    if (
+      error &&
+      (error.message?.includes("final_deadline") ||
+        error.message?.includes("column") ||
+        error.code === "PGRST116" ||
+        error.message?.includes("Bad Request"))
+    ) {
+      const fallbackQuery = applyProjectFilters(
+        supabase.from("projects").select(fallbackSelect),
+        { includeFinalDeadline: false }
+      );
+      const retryResult = await fallbackQuery;
+      if (retryResult.error) {
+        throw retryResult.error;
+      }
+      return (retryResult.data as ProjectRecord[]) || [];
+    }
+
+    if (error) {
+      throw error;
+    }
+
+    return (data as ProjectRecord[]) || [];
+  };
+
+  const handleExportProjects = async (type: "pdf" | "csv") => {
+    try {
+      setExporting(type);
+      const allProjects = await fetchAllProjectsForExport();
+      if (!allProjects.length) {
+        toast({
+          title: "Sem dados para exportar",
+          description: "Ajuste os filtros para encontrar projetos.",
+        });
+        return;
+      }
+      if (type === "pdf") {
+        await generateProjectsListPdf(allProjects);
+      } else {
+        exportProjectsToCsv(allProjects);
+      }
+      toast({
+        title: "Exportação concluída",
+        description: type === "pdf" ? "PDF gerado com sucesso." : "Arquivo CSV gerado com sucesso.",
+      });
     } catch (error: any) {
       toast({
-        title: "Erro ao carregar projetos",
-        description: error.message,
+        title: "Erro ao exportar projetos",
+        description: error.message || "Não foi possível gerar o arquivo.",
         variant: "destructive",
       });
     } finally {
-      setLoading(false);
+      setExporting(null);
     }
   };
+
+  const openTaskDialog = (project: ProjectRecord) => {
+    setTaskProject(project);
+    setTaskForm({
+      title: `Acompanhar ${project.object}`,
+      description: "",
+      dueDate: "",
+      priority: "medium",
+      assignedTo: "",
+    });
+    setTaskDialogOpen(true);
+  };
+
+  const handleCreateProjectTask = async () => {
+    if (!taskProject) return;
+    if (!taskForm.title.trim()) {
+      toast({
+        title: "Título obrigatório",
+        description: "Defina um título para a tarefa.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setCreatingTask(true);
+    try {
+      await createTask(
+        taskForm.title.trim(),
+        taskForm.description.trim(),
+        taskForm.assignedTo || undefined,
+        taskForm.priority,
+        taskForm.dueDate || undefined,
+        "project",
+        taskProject.id,
+        taskProject.municipalities?.name ? [taskProject.municipalities.name] : []
+      );
+      toast({
+        title: "Tarefa criada",
+        description: "Acompanhamento registrado com sucesso.",
+      });
+      setTaskDialogOpen(false);
+    } catch (error: any) {
+      toast({
+        title: "Erro ao criar tarefa",
+        description: error.message || "Não foi possível salvar a tarefa.",
+        variant: "destructive",
+      });
+    } finally {
+      setCreatingTask(false);
+    }
+  };
+
+  useEffect(() => {
+    if (projectsError) {
+      toast({
+        title: "Erro ao carregar projetos",
+        description: projectsError.message,
+        variant: "destructive",
+      });
+    }
+  }, [projectsError, toast]);
 
   const openHistory = async (project: any) => {
     setActiveProject(project);
@@ -424,10 +603,18 @@ const Projects = () => {
 
   const formatDate = (date: string | null) => formatDateLocal(date);
 
-  if (loading) {
+  if (isProjectsLoading && projects.length === 0) {
     return (
       <div className="flex items-center justify-center h-full">
         <div className="text-muted-foreground">Carregando projetos...</div>
+      </div>
+    );
+  }
+
+  if (projectsError && projects.length === 0) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <div className="text-destructive text-sm">Erro ao carregar projetos. Ajuste os filtros ou tente novamente.</div>
       </div>
     );
   }
@@ -625,11 +812,52 @@ const Projects = () => {
             <Button variant="outline" onClick={() => setFilters({ municipality_id: "", program_id: "", ministry: "", status: "", from_date: "", to_date: "", end_date_from: "", end_date_to: "", sortBy: "created_at", sortOrder: "desc" })}>
               Limpar filtros
             </Button>
-            <Button className="ml-2" variant="default" onClick={() => generateProjectsListPdf(projects)}>
-              <FileText className="mr-2 h-4 w-4" /> Exportar lista (PDF)
+            <Button
+              className="ml-2"
+              variant="default"
+              onClick={() => handleExportProjects("pdf")}
+              disabled={!!exporting}
+            >
+              <FileText className="mr-2 h-4 w-4" />
+              {exporting === "pdf" ? "Gerando..." : "Exportar lista (PDF)"}
             </Button>
-            <Button className="ml-2" variant="outline" onClick={() => exportProjectsToCsv(projects)}>
-              Exportar lista (Excel)
+            <Button
+              className="ml-2"
+              variant="outline"
+              onClick={() => handleExportProjects("csv")}
+              disabled={!!exporting}
+            >
+              {exporting === "csv" ? "Gerando..." : "Exportar lista (Excel)"}
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {viewMode !== "kanban" && (
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-sm text-muted-foreground">
+          <div>
+            {totalProjects > 0
+              ? `Mostrando ${showingFrom}–${showingTo} de ${totalProjects} projeto(s)`
+              : "Nenhum projeto encontrado"}
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+              disabled={!canGoPrev || isProjectsFetching}
+            >
+              Anterior
+            </Button>
+            <span className="text-xs">
+              Página {page} de {totalPages}
+            </span>
+            <Button
+              size="sm"
+              onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
+              disabled={!canGoNext || isProjectsFetching}
+            >
+              Próxima
             </Button>
           </div>
         </div>
@@ -640,7 +868,7 @@ const Projects = () => {
       ) : viewMode === "tabela" ? (
         <ProjectsTable
           projects={projects}
-          onEdit={(project) => { setSelectedProject(project); setDialogOpen(true); }}
+          onEdit={(project) => { setSelectedProject(project as ProjectRecord); setDialogOpen(true); }}
           onOpenHistory={(project) => openHistory(project)}
           onGeneratePdf={(projectId) => generateProjectPdfById(projectId)}
           onOpenMunicipality={(project) => openMunicipalityInfo(project)}
@@ -748,6 +976,17 @@ const Projects = () => {
                   <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); openHistory(project); }} className="flex-shrink-0">
                     <History className="mr-1 h-3 w-3" /> <span className="hidden sm:inline">Histórico</span>
                   </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      openTaskDialog(project);
+                    }}
+                    className="flex-shrink-0"
+                  >
+                    <CheckSquare className="mr-1 h-3 w-3" /> <span className="hidden sm:inline">Tarefa</span>
+                  </Button>
                   <Button size="sm" variant="secondary" onClick={(e) => { e.stopPropagation(); openMunicipalityInfo(project); }} className="flex-shrink-0">
                     <Building2 className="mr-1 h-3 w-3" /> <span className="hidden sm:inline">Município</span>
                   </Button>
@@ -784,8 +1023,91 @@ const Projects = () => {
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         project={selectedProject}
-        onSuccess={loadProjects}
+        onSuccess={() => projectsQuery.refetch()}
       />
+
+      <Dialog open={taskDialogOpen} onOpenChange={setTaskDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Criar tarefa para {taskProject?.object || "projeto"}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="grid gap-2">
+              <Label htmlFor="task-title">Título</Label>
+              <Input
+                id="task-title"
+                value={taskForm.title}
+                onChange={(e) => setTaskForm((prev) => ({ ...prev, title: e.target.value }))}
+                placeholder="Digite o título da tarefa"
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="task-description">Descrição</Label>
+              <Textarea
+                id="task-description"
+                value={taskForm.description}
+                onChange={(e) => setTaskForm((prev) => ({ ...prev, description: e.target.value }))}
+                placeholder="Inclua detalhes ou próximos passos"
+              />
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="grid gap-2">
+                <Label>Prioridade</Label>
+                <Select
+                  value={taskForm.priority}
+                  onValueChange={(value) => setTaskForm((prev) => ({ ...prev, priority: value as TaskPriority }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="low">Baixa</SelectItem>
+                    <SelectItem value="medium">Média</SelectItem>
+                    <SelectItem value="high">Alta</SelectItem>
+                    <SelectItem value="urgent">Urgente</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="task-due-date">Prazo</Label>
+                <Input
+                  id="task-due-date"
+                  type="date"
+                  value={taskForm.dueDate}
+                  onChange={(e) => setTaskForm((prev) => ({ ...prev, dueDate: e.target.value }))}
+                />
+              </div>
+            </div>
+            <div className="grid gap-2">
+              <Label>Responsável</Label>
+              <Select
+                value={taskForm.assignedTo || undefined}
+                onValueChange={(value) => setTaskForm((prev) => ({ ...prev, assignedTo: value }))}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione um usuário" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">Não atribuir</SelectItem>
+                  {taskUsers.map((user) => (
+                    <SelectItem key={user.id} value={user.id}>
+                      {user.displayName}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setTaskDialogOpen(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleCreateProjectTask} disabled={creatingTask}>
+              {creatingTask ? "Salvando..." : "Criar tarefa"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Dialog: Detalhes do projeto (somente leitura) */}
       <ProjectInfoDialog

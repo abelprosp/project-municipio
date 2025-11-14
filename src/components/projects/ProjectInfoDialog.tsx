@@ -168,7 +168,16 @@ export function ProjectInfoDialog({
 
     setUploading(true);
     try {
-      const filePath = `project_${project.id}/${Date.now()}_${file.name}`;
+      const originalName = file.name;
+      const extension = originalName.includes(".")
+        ? originalName.slice(originalName.lastIndexOf("."))
+        : "";
+      const randomSegment =
+        typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+          ? crypto.randomUUID().replace(/-/g, "")
+          : Math.random().toString(36).slice(2, 10);
+      const safeFileName = `${Date.now()}_${randomSegment}${extension}`;
+      const filePath = `project_${project.id}/${safeFileName}`;
       const { data: uploadRes, error: uploadErr } = await supabase.storage
         .from("project-docs")
         .upload(filePath, file, { cacheControl: "3600", upsert: false });
@@ -179,10 +188,10 @@ export function ProjectInfoDialog({
         .from("project_documents")
         .insert({
           project_id: project.id,
-          name: file.name,
+          name: originalName,
           path: uploadRes?.path || filePath,
           size: file.size,
-          content_type: file.type,
+          content_type: file.type || "application/octet-stream",
           uploaded_by: user?.id || null,
         });
       if (insertErr) throw insertErr;
@@ -192,7 +201,7 @@ export function ProjectInfoDialog({
         "project",
         project.id,
         project.object || "Projeto",
-        `Documento "${file.name}" enviado`
+        `Documento "${originalName}" enviado`
       );
     } catch (error: unknown) {
       toast({
