@@ -12,6 +12,7 @@ import Programs from "./pages/Programs";
 import { UserControlPage } from "./pages/UserControl";
 import NotFound from "./pages/NotFound";
 import Tasks from "./pages/Tasks";
+import Guide from "./pages/Guide";
 
 const queryClient = new QueryClient();
 
@@ -52,6 +53,14 @@ const App = () => (
             element={
               <MainLayout>
                 <Tasks />
+              </MainLayout>
+            }
+          />
+          <Route
+            path="/guide"
+            element={
+              <MainLayout>
+                <Guide />
               </MainLayout>
             }
           />
